@@ -1,0 +1,25 @@
+#!/bin/bash
+
+echo ""
+echo "RAPSearch installer"
+
+CDIR=`pwd`
+TMPDIR="Src"
+cd $TMPDIR
+
+make clean
+make
+rm -f -r *.o
+
+cd $CDIR
+rm -f -r bin
+mkdir bin
+
+mv $TMPDIR/rapsearch bin/rapsearch
+mv $TMPDIR/prerapsearch bin/
+
+echo ""
+echo "Executables are now installed under bin/"
+echo ""
+
+exit 0

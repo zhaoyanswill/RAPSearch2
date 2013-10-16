@@ -1,0 +1,83 @@
+Program Name: RAPSearch (rapsearch)
+Version: 2.01 -- *** a version that supports multiple threads **
+Released: June 17, 2011 (RAPSearch2.0 was released May 26, 2011)
+Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yuwwu@indiana.edu>, Justin Choi(jeochoi@cgb.indiana.edu), and Haixu Tang <hatang@indiana.edu>
+Affiliation: School of Informatics and Computing, Indiana University, Bloomington
+
+The development of rapsearch was supported by NIH grant 1R01HG004908 to YY
+
+rapsearch is free software under the terms of the GNU General Public License as published by 
+the Free Software Foundation.
+
+>> If you are switching from RAPSearch1.0 to RAPSearch2.0
+   RAPSearch2 runs faster than RAPSearch1, uses less memory,
+   and best of all, RAPSearch2 supports mult-threads!!
+   You can define the number of threads that you want to use by setting -z parameter (see below)
+
+   NOTE: if you switch from RAPSearch1.0 to RAPSearch2.0, 
+	you need to re-run prerapsearch to prepare new database files!!
+
+>> Before you start
+   RAPSearch means Reduced Alphabet based Protein similarity Search 
+
+   A linux/unix computer that has 4G memory should be sufficient 
+   for similarity search against database of any size
+
+   RAPSearch2 on the web: 
+   http://omics.informatics.indiana.edu/mg/RAPSearch2
+  (please check the project home page for updates and newer version of the rapsearch)
+   (RAPSearch1 on the web: http://omics.informatics.indiana.edu/mg/RAPSearch)
+
+>> Installation
+
+   simply call: install
+
+   The executable files "rapsearch" and "prerapsearch"
+   rapsearch:    the similarity search tool
+   prerapsearch: the program that generates similarity search database files to be used by rapsearch
+
+>> Using prerapsearch & rapsearch
+
+ 1.Before using rapsearch for similarity search against a database, 
+   run prerapsearch to prepare similarity search database files
+
+   Note: if you switch from RAPSearch1.0 to RAPSearch2.0, you need to re-run prerapsearch to prepare new database files!!
+
+   Usage: prerapsearch -d database -n processed-db-file
+
+   Example 1: prerapsearch -d nogCOGdomN95.seq -n nogCOGdomN95_db
+   Input: nogCOGdomN95.seq (a fasta file)
+   Outputs: nogCOGdomN95_db (a binary file) & a couple of other files
+
+   Example 2: prerapsearch -d nr -n nr_db
+   Input: nr (NCBI nr file)
+   Outputs: nr_db
+
+ 2.Using rapsearch for similarity search
+
+   Usage: type rapsearch for usages
+
+   Example 1: rapsearch -q 4440037.3.dna.fa -d nogCOGdomN95_db -o 4440037.3.dna-vs-nogCOGdomN95 -z 4
+   Input:  4440037.3.dna.fa #query file, note if it is a file of short nucleotide sequences, 
+    	   nogCOGdomN95_db     #the base name of the similarity search database 
+   (here -z is set to 4, so that four threads be used) 
+
+   Output: 4440037.3.dna-vs-nogCOGdomN95.m8  #the similarty search result, 
+                                             #one hit in one line, like -m 8 output from blast
+					     #note the only difference is that log10(E-value) is listed in the file
+  		  			     #maximum 500 hits per query
+   Output: 4440037.3.dna-vs-nogCOGdomN95.aln #detailed alignments
+					     #maximum 100 alignments per query
+
+   Notes:  
+ 	  a) By default, rapsearch program uses only one thread; you may use -z to change the threads
+	  b) RAPSearch outputs hits with log_10(E-value) < 1 (i.e., E-value of 10);
+             you may change this by setting log_10(E-value) using -e option
+          c) You may also try -v and -b options to change the number of database sequences that you want to output.
+
+>> More notes 
+   1. The sample files (e.g.,4440037.3.dna.fa & nogCOGdomN95.seq) are available at the rapsearch website; nr can
+   be downloaded from NCBI ftp site. 
+   2. For big similarity search database (like nr), prerapsearch automatically splits the database into 
+   several files to reduce the memory requirement. If you need further reduce the memory usage,
+   you can choose to use -s option to run prerapsearch
