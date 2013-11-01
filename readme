@@ -1,7 +1,7 @@
 Program Name: RAPSearch (rapsearch)
-Version: 2.01 -- *** a version that supports multiple threads **
-Released: June 17, 2011 (RAPSearch2.0 was released May 26, 2011)
-Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yuwwu@indiana.edu>, Justin Choi(jeochoi@cgb.indiana.edu), and Haixu Tang <hatang@indiana.edu>
+Version: 2.15 -- *** a version that supports multiple threads **
+Released: Oct 31, 2013 (RAPSearch2.0 was released May 26, 2011)
+Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yuwwu@indiana.edu>, and Haixu Tang <hatang@indiana.edu>
 Affiliation: School of Informatics and Computing, Indiana University, Bloomington
 
 The development of rapsearch was supported by NIH grant 1R01HG004908 to YY
@@ -24,13 +24,14 @@ the Free Software Foundation.
    for similarity search against database of any size
 
    RAPSearch2 on the web: 
+   http://rapsearch2.sourceforge.net/
    http://omics.informatics.indiana.edu/mg/RAPSearch2
   (please check the project home page for updates and newer version of the rapsearch)
    (RAPSearch1 on the web: http://omics.informatics.indiana.edu/mg/RAPSearch)
 
 >> Installation
 
-   simply call: install
+   simply call: ./install
 
    The executable files "rapsearch" and "prerapsearch"
    rapsearch:    the similarity search tool
@@ -73,7 +74,7 @@ the Free Software Foundation.
  	  a) By default, rapsearch program uses only one thread; you may use -z to change the threads
 	  b) RAPSearch outputs hits with log_10(E-value) < 1 (i.e., E-value of 10);
              you may change this by setting log_10(E-value) using -e option
-          c) You may also try -v and -b options to change the number of database sequences that you want to output.
+	  c) You may also try -v and -b options to change the number of database sequences that you want to output.
 
 >> More notes 
    1. The sample files (e.g.,4440037.3.dna.fa & nogCOGdomN95.seq) are available at the rapsearch website; nr can
