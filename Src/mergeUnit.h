@@ -10,8 +10,6 @@
 #include "sortUnit.h"
 #include "cindex.h"
 
-using namespace std;
-
 
 
 class CMergeUnit
@@ -28,30 +26,27 @@ public:
 	}
 
 	// insert all hits <= sComplete into v, read next data block
-	string Update(vector<CSortUnit>& v);
-	void Update(int nID, vector<CSortUnit>& v);
+	void Update(int nID, std::vector<CSortUnit>& v);
 	
 	// get the ID of last element in this file
 	int GetLast();
 
 
 private:
-	ifstream m_ifFile;
-	vector<char> m_vPool;
+	std::ifstream m_ifFile;
+	std::vector<char> m_vPool;
 	int m_nSize;
 	int m_nLeft;
-	string m_sMax;
 	// point to the next query string
-	vector<char>::iterator m_itEnd;
-	string m_sFile;
+	std::vector<char>::iterator m_itEnd;
+	std::string m_sFile;
 	bool m_bAln;
-	bool m_bDone;
+
+	std::vector<CIndex> m_vIdx;
+
 	char m_aSpace[1];
 	char m_aTab[1];
-	char m_aIdicator[1];
-
-	vector<CIndex> m_vIdx;
-	int m_nCur;
+	std::string m_sLogE;
 };
 
 #endif

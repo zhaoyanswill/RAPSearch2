@@ -18,7 +18,7 @@ using namespace std;
 #define OPTION_HSSP "w"
 #define OPTION_MINLEN "l"
 #define	Program	"rapsearch"
-#define	Version "2.14"
+#define	Version "2.15"
 
 void printUsage(char *error);
 
@@ -188,8 +188,8 @@ void printUsage(char *error)
             "\t-" OPTION_THREADNUM         " int  : number of threads [default: %d]\n"
             "\t-" OPTION_EVAL         " double  : threashold of log_10(E-value) [default: %.1f]\n"
             "\t-" OPTION_MINLEN         " int  : threashold of minimal alignment length [default: %d]\n"
-			"\t-" OPTION_MAXHIT       " int    : number of database sequences to show one-line descriptions [default: %d]. If it's 0, all results will be shown.\n"
-			"\t-" OPTION_MAXALN       " int    : number of database sequence to show alignments [default: %d]. If it's 0, all results will be shown.\n"
+			"\t-" OPTION_MAXHIT       " int    : number of database sequences to show one-line descriptions [default: %d]. If it's -1, all results will be shown.\n"
+			"\t-" OPTION_MAXALN       " int    : number of database sequence to show alignments [default: %d]. If it's -1, all results will be shown.\n"
 			"\t-" OPTION_QUERYTYPE       " char    : type of query sequences [u/U:unknown, n/N:nucleotide, a/A:amino acid, q/Q:fastq, default: %s]\n"
 			"\t-" OPTION_PRINTEMPTY       " char    : output ALL/MATCHED query reads into the alignment file [t/T: output all query reads, f/F: output matched reads, default: %s]\n"
 			"\t-" OPTION_GAPEXT       " char    : perform gap extension to speed up [t/T: perform gap extension, f/F: do not perform gap extension, default: %s]\n"

@@ -990,21 +990,21 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, uint unDSize, uint unQSize, uint unMer)
 {
 	m_dLogEvaThr = dLogEvaThr;
-	if (nMaxOut == 0)
+	if (nMaxOut == -1)
 	{
 		m_nMaxOut = LLONG_MAX;
 	}
 	else
 	{
-		m_nMaxOut = nMaxOut;
+		m_nMaxOut = abs(nMaxOut);
 	}
-	if (nMaxM8 == 0)
+	if (nMaxM8 == -1)
 	{
 		m_nMaxM8 = LLONG_MAX;
 	}
 	else
 	{
-		m_nMaxM8 = nMaxM8;
+		m_nMaxM8 = abs(nMaxM8);
 	}
 	m_bPrintEmpty = bPrintEmpty;
 	m_bGapExt = bGapExt;
@@ -2948,9 +2948,9 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre)
 			vMergeUnit[j]->Update(i, v);
 		}
 
-		sort(v.begin(), v.end());
-
 		int n = min(m_nMaxOut, (long long)v.size());
+		partial_sort(v.begin(), v.begin()+n, v.end());
+
 		/***********************************************************/
 		if (true == m_bPrintEmpty && 0 == n)
 		{
@@ -2987,9 +2987,9 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre)
 			vMergeUnit[j]->Update(i, v);
 		}
 
-		sort(v.begin(), v.end());
-
 		int n = min(m_nMaxM8, (long long)v.size());
+		partial_sort(v.begin(), v.begin()+n, v.end());
+
 		for (int j = 0; j < n; ++j)
 		{
 			m_ofM8 << v[j].m_sHit;
@@ -3007,142 +3007,6 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre)
 	m_ofM8.close();
 }
 
-
-/*
-void CHashSearch::MergeRes(int nDbBlockNum)
-{
-	m_ofAln.open((m_sOutBase+".aln").c_str());
-	m_ofM8.open((m_sOutBase+".m8").c_str());
-
-	int nSize = ((1<<31)-1) / nDbBlockNum;
-
-	vector<CSortUnit> v;
-	vector<string> vLast(nDbBlockNum);
-	vector<CMergeUnit*> vMergeUnit;
-
-	for (int i = 0; i < nDbBlockNum; ++i)
-	{
-		string sName = m_sOutBase+".aln"+".tmp"+lexical_cast<string>(i);
-		CMergeUnit* p = new CMergeUnit(sName.c_str(), nSize, true);
-		vMergeUnit.push_back(p);
-	}
-	
-	for (int i = 0; i < nDbBlockNum; ++i)
-	{
-		vLast[i] = vMergeUnit[i]->Update(v);
-	}
-
-	while (v.size() > 0)
-	{
-		string sMin = *min_element(vLast.begin(), vLast.end());
-
-		sort(v.begin(), v.end());
-
-		string s = v[0].m_sQr;
-		uint unLeft = 0;
-		int nCnt = 0;
-		int i = 0;
-		for (i = 0; i < v.size(); ++i)
-		{
-			if (s == v[i].m_sQr && nCnt < 100)
-			{
-				m_ofAln << v[i].m_sHit;
-				++nCnt;
-			}
-			else if (s != v[i].m_sQr)
-			{
-				s = v[i].m_sQr;
-				if (s < sMin)
-				{
-					nCnt = 1;
-					m_ofAln << v[i].m_sHit;
-				}
-				else
-				{
-					unLeft = distance(v.begin()+i, v.end());
-					break;
-				}
-			}
-
-		}
-
-		copy(v.begin()+i, v.end(), v.begin());
-		v.erase(v.begin()+unLeft, v.end());
-
-		for (int i = 0; i < nDbBlockNum; ++i)
-		{
-			vLast[i] = vMergeUnit[i]->Update(v);
-		}
-	}
-
-	v.clear();
-
-	for (int i = 0; i < nDbBlockNum; ++i)
-	{
-		delete vMergeUnit[i];
-
-		string sName = m_sOutBase+".m8"+".tmp"+lexical_cast<string>(i);
-		CMergeUnit* p = new CMergeUnit(sName.c_str(), nSize, false);
-		vMergeUnit[i] = p;
-	}
-	
-	for (int i = 0; i < nDbBlockNum; ++i)
-	{
-		vLast[i] = vMergeUnit[i]->Update(v);
-	}
-
-	while (v.size() > 0)
-	{
-		string sMin = *min_element(vLast.begin(), vLast.end());
-
-		sort(v.begin(), v.end());
-
-		string s = v[0].m_sQr;
-		uint unLeft = 0;
-		int nCnt = 0;
-		int i = 0;
-		for (i = 0; i < v.size(); ++i)
-		{
-			if (s == v[i].m_sQr && nCnt < 500)
-			{
-				m_ofM8 << v[i].m_sHit;
-				++nCnt;
-			}
-			else if (s != v[i].m_sQr)
-			{
-				s = v[i].m_sQr;
-				if (s < sMin)
-				{
-					nCnt = 1;
-					m_ofM8 << v[i].m_sHit;
-				}
-				else
-				{
-					unLeft = distance(v.begin()+i, v.end());
-					break;
-				}
-			}
-
-		}
-
-		copy(v.begin()+i, v.end(), v.begin());
-		v.erase(v.begin()+unLeft, v.end());
-
-		for (int i = 0; i < nDbBlockNum; ++i)
-		{
-			vLast[i] = vMergeUnit[i]->Update(v);
-		}
-	}
-
-	for (int i = 0; i < nDbBlockNum; ++i)
-	{
-		delete vMergeUnit[i];
-	}
-
-	m_ofAln.close();
-	m_ofM8.close();
-}
-*/
 
 //----------------------------------------------------------------------
 void CHashSearch::GuessQueryType(const char* szFile)
