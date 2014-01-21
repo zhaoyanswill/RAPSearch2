@@ -12,6 +12,7 @@
 #include "BlastStat.h"
 #include "paras.h"
 #include "cindex.h"
+#include "hitUnit.h"
 using namespace std;
 
 
@@ -91,31 +92,6 @@ typedef struct STALNMNT
 }STAlnmnt;
 
 
-// structure including the result information of a hit
-class STResult
-{
-public:
-	int nDbIdx;
-	int nScore;
-	double dBits;
-	double dEValue;
-	double dIdent;
-	int nAlnLen;
-	int nMismatch;
-	int nGapOpen;
-	int nFrame;
-	int nQSt;
-	int nQEd;
-	int nQBeg;
-	int nQEnd;
-	int nDSt;
-	int nDEd;
-	string sQ;
-	string sInfo;
-	string sD;
-};
-
-
 /* map for store hit results */
 typedef pair<int, int> PIDX;
 struct pairComp
@@ -132,7 +108,7 @@ struct pairComp
 		}
 	}
 };
-typedef multimap<PIDX, STResult, pairComp> MRESULT;
+typedef multimap<PIDX, CHitUnit, pairComp> MRESULT;
 typedef MRESULT::iterator MIT;
 
 /* the class for indexing, searching */
@@ -146,16 +122,10 @@ public:
 		{
 			delete m_pBlastSig;
 		}
-
-		//m_ofAln << m_sOutput;
-		//m_ofM8 << m_sM8;
-
-		//m_ofAln.close();
-		//m_ofM8.close();
 	}
 
 	// do the protein database search
-	void Process(char* szDBFile, char* szQFile, char* szOFile, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, uint unDSize = 300000000, uint unQSize = 50000000, uint unMer = 6);
+	void Process(char* szDBFile, char* szQFile, char* szOFile, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 50000000, uint unMer = 6);
 	// indexing the database
 	void Process(char* szDBFile, char* szDbHash, int nSplitNum = 0, uint unMer = 6);
 
@@ -192,11 +162,6 @@ private:
 			VUINT& vDSet, CDbPckg& Db,
 			VNAMES& vQNames, VNAMES& vDNmaes,
 			MRESULT& mRes, int nTreadID);
-	void FindSeeds(int nSeed, uint unIncr, CAlnPckg& QrAln, MINDEX& vDHash, VUINT& vRes, bool bMutation);
-	// set intersection
-	void SetInter(vector<uint>& v1, vector<uint>& v2, int nDiff, vector<uint>& v);
-	// set difference
-	void SetDiff(vector<uint>& v1, vector<uint>& v2, int nDiff, vector<uint>& v);
 
 	// align two sequences
 	bool AlignSeqs(int nSeed, CAlnPckg& QrAln, CAlnPckg& DbAln,  uint& unSeedLen, STAlnmnt& stAlnmnt, int nTreadID);
@@ -213,29 +178,31 @@ private:
 	void ResetResult(STAlnmnt& stAlnmnt);
 
 	// calculate e-value and generate the subsequence 
-	void CalRes(int nQIdx, uchar* pQ, int nQLen, uint unQSeedBeg/*, string& sQName*/, int nDIdx, uchar* pD, uint unDSeedBeg, VNAMES& vDNames, uint unLocalSeedLen, STAlnmnt& stAlnmnt, ostream& out, MRESULT& mRes, int nTreadID);
+	void CalRes(int nQIdx, uchar* pQ, int nQLen, uint unQSeedBeg, int nDIdx, uchar* pD, uint unDSeedBeg, CDbPckg& Db, uint unLocalSeedLen, STAlnmnt& stAlnmnt, MRESULT& mRes, int nTreadID);
 	// calculate e-values of multi hits
-	void SumEvalue(vector<STResult>& v, int nSt, int nEd, int nLen, int nTreadID);
+	void SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int nTreadID);
 	// output the result
 	void PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg& Db);
-
-	// test 
-	void PrintHash(MINDEX& v); 
-	// test 
-	void PrintInfo(MINDEX& v); 
-	template <class type>
-	void PrintNum(string sPre, type val);
-	bool CompPrev(uchar* p, uint unBeg, uint un);
 
 	// revise the size of database according to swift
 	void GuessTotSeq(const char* szFile, long int& lnSeqNum, long int& lnAaNum);
 
 	// merge the result files
-	void MergeRes(int nDbBlockNum, string& sQPre);
+	void MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre);
 
 	// init alignment parameters
 	void InitAlignPara(bool bType, long int lnSLen, int nSNum, int nThreadNum);
 
+	void PrintAln(vector<CHitUnit>& v);
+	void PrintM8(vector<CHitUnit>& v);
+
+	template<class T>
+	void PrintXmlLine(char* sTag, T s);
+	void PrintXmlTag(char* sTag);
+	void PrintXmlTagR(char* sTag);
+	void PrintXmlBegin(string& sDb);
+	void PrintXml(vector<CHitUnit>& v, int nIdx);
+	void PrintXmlEnd();
 
 
 private:
@@ -291,6 +258,12 @@ private:
 	bool m_bGapExt;
 	ofstream m_ofAln;
 	ofstream m_ofM8;
+
+	bool m_bXml;
+	ofstream m_ofXml;
+	uint m_unXmlSp;
+	uint m_unXmlCnt;
+
 	string m_sOutBase;
 	// store the ouput
 	string m_sOutput;
@@ -311,6 +284,8 @@ private:
 	bool m_bAcc;
 	bool m_bHssp;
 	int m_nMinLen;
+	long int m_lnSeqNum;
+	long int m_lnTotalAa;
 
 	// hssp criteria
 	vector<int> m_vCriteria;
@@ -319,27 +294,10 @@ private:
 
 inline void CHashSearch::InitAlignPara(bool bType, long int lnSLen, int nSNum, int nThreadNUm)
 {
-	/*
-	if (NULL != m_pBlastSig)
-	{
-		delete m_pBlastSig;
-	}
-	*/
 	for (int i = 0; i < nThreadNUm; ++i)
 	{
 		BlastStat* pBlastSig = NULL;
-		/*
-		if (bType)
-		{
-		*/
 		pBlastSig = new BlastStat(1, lnSLen, nSNum);
-		/*
-		}
-		else
-		{
-			pBlastSig = new BlastStat(0, lnSLen, nSNum);
-		}
-		*/
 		m_vpBlastSig.push_back(pBlastSig);
 	}
 
@@ -421,13 +379,6 @@ inline int CHashSearch::Tran2Ten(CAlnPckg& QrAln)
 }
 
 
-template <class type>
-inline void CHashSearch::PrintNum(string sPre, type val)
-{
-	cout << sPre << ":\t" << val << endl;
-}
-
-
 inline void CHashSearch::Encode(const string& sIn, vector<uchar>& v)
 {
 	v.reserve(sIn.size());
@@ -445,14 +396,6 @@ inline void CHashSearch::Decode(const vector<uchar>& v, string& sOut)
 	for (int i = 0; i < v.size(); ++i)
 	{
 		sOut += m_aCode2Char[v[i]];
-		//if ('-' == v[i])
-		//{
-			//sOut += '-';
-		//}
-		//else
-		//{
-			//sOut += m_aCode2Char[v[i]];
-		//}
 	}
 }
 
@@ -517,79 +460,6 @@ inline void CHashSearch::ResetResult(STAlnmnt& stAlnmnt)
 }
 
 
-inline void CHashSearch::SetInter(vector<uint>& v1, vector<uint>& v2, int nDiff, vector<uint>& v)
-{
-	vector<uint>::iterator it1 = v1.begin();
-	vector<uint>::iterator it2 = v2.begin();
-
-	while (it1 != v1.end() && it2 != v2.end())
-	{
-		if (((*it1)>>11)<((*it2)>>11) || ((((*it1)>>11)==((*it2)>>11))&&(((*it1)&0x7ff)<(((*it2)&0x7ff)-nDiff))))
-		{
-			++it1;
-		}
-		else if (((*it1)>>11)>((*it2)>>11) || ((((*it1)>>11)==((*it2)>>11))&&(((*it1)&0x7ff)>(((*it2)&0x7ff)-nDiff))))
-		{
-			++it2;
-		}
-		else
-		{
-			v.push_back(*it1);
-			++it1;
-			++it2;
-		}
-	}
-}
-
-
-inline void CHashSearch::SetDiff(vector<uint>& v1, vector<uint>& v2, int nDiff, vector<uint>& v)
-{
-	vector<uint>::iterator it1 = v1.begin();
-	vector<uint>::iterator it2 = v2.begin();
-
-	while (it1 != v1.end() && it2 != v2.end())
-	{
-		if (((*it1)>>11)<((*it2)>>11) || ((((*it1)>>11)==((*it2)>>11))&&(((*it1)&0x7ff)<(((*it2)&0x7ff)-nDiff))))
-		{
-			v.push_back(*it1);
-			++it1;
-		}
-		else if (((*it1)>>11)>((*it2)>>11) || ((((*it1)>>11)==((*it2)>>11))&&(((*it1)&0x7ff)>(((*it2)&0x7ff)-nDiff))))
-		{
-			++it2;
-		}
-		else
-		{
-			++it1;
-			++it2;
-		}
-	}
-
-	while (it1 != v1.end())
-	{
-		v.push_back(*it1);
-		++it1;
-	}
-}
-
-
-inline bool CHashSearch::CompPrev(uchar* p, uint unBeg, uint un)
-{
-	if (unBeg < un)
-	{
-		return false;
-	}
-
-	for (uint i = unBeg-un; i < unBeg; ++i)
-	{
-		if (p[i] != p[i+un])
-		{
-			return false;
-		}
-	}
-
-	return true;
-}
 
 
 #endif // __HASHSEARCH_H_

@@ -17,8 +17,9 @@ using namespace std;
 #define OPTION_ACCELERATE "a"
 #define OPTION_HSSP "w"
 #define OPTION_MINLEN "l"
+#define OPTION_XML "x"
 #define	Program	"rapsearch"
-#define	Version "2.15"
+#define	Version "2.16"
 
 void printUsage(char *error);
 
@@ -43,6 +44,7 @@ int main(int argc, char** argv)
 	bool bAcc = false;
 	bool bHssp = false;
 	int nMinLen = 0;
+	int bXml = false;
 
     int	i, k;
     for (i = 0; i < argc; i ++)
@@ -153,6 +155,19 @@ int main(int argc, char** argv)
 		{
 			sscanf(argv[i+1], "%d", &nMinLen);
 		}
+		else if(argv[i][1] == OPTION_XML[0]) // HSSP criteria 
+		{
+			char cXml = 'f';
+			sscanf(argv[i+1], "%c", &cXml);
+			if ('f' == cXml || 'F' == cXml)
+			{
+				bXml = false;
+			}
+			else
+			{
+				bXml = true;
+			}
+		}
     }
 
     if (!szQrFile)	printUsage("Error: No query");
@@ -164,7 +179,7 @@ int main(int argc, char** argv)
     printf("QueryFileName %s\n", szQrFile);
 
 	CHashSearch hs(nThreadNum);
-	hs.Process(szDbHash, szQrFile, szOutFile, dLogEvalueCut, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen);
+	hs.Process(szDbHash, szQrFile, szOutFile, dLogEvalueCut, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen, bXml);
 
     printf(">>>Main END\n");
     time_t jobfinished = time(NULL);
@@ -195,10 +210,11 @@ void printUsage(char *error)
 			"\t-" OPTION_GAPEXT       " char    : perform gap extension to speed up [t/T: perform gap extension, f/F: do not perform gap extension, default: %s]\n"
 			"\t-" OPTION_ACCELERATE       " char    : fast mode (10~30 fold) [t/T: perform fast search, f/F: perform normal search, default: %s]\n"
 			"\t-" OPTION_HSSP       " char    : perform HSSP criteria instead of evalue criteria [t/T: perform HSSP criteria, f/F: perform evalue criteria, default: %s]\n"
+			"\t-" OPTION_XML       " char    : print hits in xml format [t/T: print hits in xml format, f/F: not print hits in xml format, default: %s]\n"
             "-------------------------------------------------------------------------\n"
             "example> %s -" OPTION_QUERY " query.fa -" OPTION_SUBJECT " nr -" OPTION_OUTPUT " output_file\n\n"
             ,
-            Program, Version, 1, 1.0, 0, 500, 100, "u", "f", "t", "f", "f", Program
+            Program, Version, 1, 1.0, 0, 500, 100, "u", "f", "t", "f", "f", "f", Program
            );
     exit(-1);
 }
