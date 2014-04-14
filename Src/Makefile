@@ -21,11 +21,11 @@ else
 	CXXFLAGS +=
 endif
 
-INC := -I ~/include
-#INC := -I ./
+#INC := -I ~/include
+INC := -I ./
 
-LIBS := -L ~/lib
-#LIBS := -L ./
+#LIBS := -L ~/lib
+LIBS := -L ./
 
 all: rapsearch prerapsearch
 
