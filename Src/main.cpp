@@ -7,6 +7,7 @@ using namespace std;
 #define OPTION_QUERY "q"
 #define OPTION_SUBJECT "d"
 #define OPTION_OUTPUT "o"
+#define OPTION_STDOUT "u"
 #define OPTION_EVAL "e"
 #define OPTION_THREADNUM	"z"
 #define OPTION_MAXHIT "v"
@@ -19,7 +20,7 @@ using namespace std;
 #define OPTION_MINLEN "l"
 #define OPTION_XML "x"
 #define	Program	"rapsearch"
-#define	Version "2.16"
+#define	Version "2.17"
 
 void printUsage(char *error);
 
@@ -45,8 +46,9 @@ int main(int argc, char** argv)
 	bool bHssp = false;
 	int nMinLen = 0;
 	int bXml = false;
+	int nStdout = 0;
 
-    int	i, k;
+    int	i;
     for (i = 0; i < argc; i ++)
     {
         if(argv[i][0] != '-') continue;
@@ -168,18 +170,22 @@ int main(int argc, char** argv)
 				bXml = true;
 			}
 		}
+        else if(argv[i][1] == OPTION_STDOUT[0] && argc > i + 1) // string : which result outputed into stdout
+        {
+			sscanf(argv[i+1], "%d", &nStdout);
+        }
     }
 
     if (!szQrFile)	printUsage("Error: No query");
     if (!szDbHash)	printUsage("Error: No database");
-    if (!szOutFile)	printUsage("Error: No output");
+    if (!szOutFile && nStdout == 0)	printUsage("Error: No output");
 
     time_t jobstart = time(NULL);
 
     printf("QueryFileName %s\n", szQrFile);
 
 	CHashSearch hs(nThreadNum);
-	hs.Process(szDbHash, szQrFile, szOutFile, dLogEvalueCut, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen, bXml);
+	hs.Process(szDbHash, szQrFile, szOutFile, nStdout, dLogEvalueCut, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen, bXml);
 
     printf(">>>Main END\n");
     time_t jobfinished = time(NULL);
@@ -197,12 +203,13 @@ void printUsage(char *error)
             "%s v%s: Fast protein similarity search tool for short reads\n"
             "-------------------------------------------------------------------------\n"
             " Options: \n"
-            "\t-" OPTION_QUERY        " string : query file (FASTA format)\n"
+            "\t-" OPTION_QUERY        " string : query file or stdin (FASTA or FASTQ format)\n"
             "\t-" OPTION_SUBJECT      " string : database file (**base name only**, with full path)\n"
-            "\t-" OPTION_OUTPUT       " string : output file name [stdout]\n"
+            "\t-" OPTION_OUTPUT       " string : output file name\n"
+            "\t-" OPTION_STDOUT       " int : stream one result through stdout [1: m8 result, 2: aln result, default: don't stream any result through stdout]\n"
             "\t-" OPTION_THREADNUM         " int  : number of threads [default: %d]\n"
-            "\t-" OPTION_EVAL         " double  : threashold of log_10(E-value) [default: %.1f]\n"
-            "\t-" OPTION_MINLEN         " int  : threashold of minimal alignment length [default: %d]\n"
+            "\t-" OPTION_EVAL         " double  : threshold of log_10(E-value) [default: %.1f]\n"
+            "\t-" OPTION_MINLEN         " int  : threshold of minimal alignment length [default: %d]\n"
 			"\t-" OPTION_MAXHIT       " int    : number of database sequences to show one-line descriptions [default: %d]. If it's -1, all results will be shown.\n"
 			"\t-" OPTION_MAXALN       " int    : number of database sequence to show alignments [default: %d]. If it's -1, all results will be shown.\n"
 			"\t-" OPTION_QUERYTYPE       " char    : type of query sequences [u/U:unknown, n/N:nucleotide, a/A:amino acid, q/Q:fastq, default: %s]\n"

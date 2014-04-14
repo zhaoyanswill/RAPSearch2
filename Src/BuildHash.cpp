@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 
 	if(argc < 5) printUsage(""); 
 
-	int	i, k;
+	int	i;
 	for (i = 0; i < argc; i ++) {
 		if(argv[i][0] != '-') continue;
 		if(argv[i][1] == 'd' && argc > i + 1) // string : database file (FASTA format)

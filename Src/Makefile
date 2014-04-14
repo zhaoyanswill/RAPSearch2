@@ -5,11 +5,12 @@
 objects := HashSearch.o BlastStat.o Seg.o mergeUnit.o
 
 CXX := g++
+#CXX := clang++
 
 CXXFLAGs :=
 
 ifeq ($(dbg), 1)
-	CXXFLAGS += -g
+	CXXFLAGS += -g -Wall
 else
 	CXXFLAGS += -O3 -w
 endif
@@ -20,11 +21,11 @@ else
 	CXXFLAGS +=
 endif
 
-#INC := -I ~/include
-INC := -I ./
+INC := -I ~/include
+#INC := -I ./
 
-#LIBS := -L ~/lib
-LIBS := -L ./
+LIBS := -L ~/lib
+#LIBS := -L ./
 
 all: rapsearch prerapsearch
 

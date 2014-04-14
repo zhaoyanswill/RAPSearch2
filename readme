@@ -1,6 +1,6 @@
 Program Name: RAPSearch (rapsearch)
-Version: 2.16 -- *** a version that supports multiple threads **
-Released: Jan 21, 2014 (RAPSearch2.0 was released May 26, 2011)
+Version: 2.17 -- *** a version that supports multiple threads **
+Released: Apri 11, 2014 (RAPSearch2.0 was released May 26, 2011)
 Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yuwwu@indiana.edu>, and Haixu Tang <hatang@indiana.edu>
 Affiliation: School of Informatics and Computing, Indiana University, Bloomington
 
@@ -44,14 +44,14 @@ the Free Software Foundation.
 
    Note: if you switch from RAPSearch1.0 to RAPSearch2.0, you need to re-run prerapsearch to prepare new database files!!
 
-   Usage: prerapsearch -d database -n processed-db-file
+   Usage: prerapsearch -d database(FASTA file) -n processed-db-file
 
    Example 1: prerapsearch -d nogCOGdomN95.seq -n nogCOGdomN95_db
    Input: nogCOGdomN95.seq (a fasta file)
    Outputs: nogCOGdomN95_db (a binary file) & a couple of other files
 
-   Example 2: prerapsearch -d nr -n nr_db
-   Input: nr (NCBI nr file)
+   Example 2: prerapsearch -d nr_fasta -n nr_db
+   Input: nr_fasta (NCBI nr file in FASTA format)
    Outputs: nr_db
 
  2.Using rapsearch for similarity search
@@ -69,6 +69,17 @@ the Free Software Foundation.
   		  			     #maximum 500 hits per query
    Output: 4440037.3.dna-vs-nogCOGdomN95.aln #detailed alignments
 					     #maximum 100 alignments per query
+
+   Example 2: cat 4440037.4440037.3.dna | rapsearch -q stdin -d nogCOGdomN95_db -o 4440037.3.dna-vs-nogCOGdomN95 -z 4
+   Input: stdin of system. 
+   It's easy and convinient to incorporate RAPSearch into the pipeline
+
+   Example 3: rapsearch -q 4440037.3.dna.fa -d nogCOGdomN95_db -o 4440037.3.dna-vs-nogCOGdomN95 -z 4 -b 0
+   Output: Only output m8 file.
+
+   Example 4: rapsearch -q 4440037.3.dna.fa -d nogCOGdomN95_db -z 4 -u 1
+   Output: Only generate m8 file and output it to stdout of system.
+   It's easy and convinient to incorporate RAPSearch into the pipeline
 
    Notes:  
  	  a) By default, rapsearch program uses only one thread; you may use -z to change the threads

@@ -23,7 +23,6 @@
 #include "weight.h"
 #include "aa.h"
 #include "n2a.h"
-#include "Seg.h"
 #include "mergeUnit.h"
 using namespace std;
 using namespace boost;
@@ -57,7 +56,7 @@ CHashSearch::CHashSearch(int nThreadNum)
 		}
 
 		char* p = murphy10s[i];
-		for (int j = 0; j < strlen(p); ++j) 
+		for (uint j = 0; j < strlen(p); ++j) 
 		{
 			uint unIdx = (i << 4) + j+1;
 			m_aChar2Code[p[j]] = unIdx;
@@ -70,9 +69,9 @@ CHashSearch::CHashSearch(int nThreadNum)
 
 	// build substitute matrix for compressed char
 	fill_n((int*)m_aSubMatrix, 256*256, -5);
-	for (int i = 0; i < strlen(aAAAlph); ++i)
+	for (uint i = 0; i < strlen(aAAAlph); ++i)
 	{
-		for (int j = 0; j < strlen(aAAAlph); ++j)
+		for (uint j = 0; j < strlen(aAAAlph); ++j)
 		{
 			if (i < 20 && j < 20)
 			{
@@ -109,6 +108,7 @@ CHashSearch::CHashSearch(int nThreadNum)
 
 	// used for convert index from with-fram to non-frame
 	m_nIdxScl = 1;
+	m_nQueryType = 0;
 
 	m_sOutBase = "";
 	m_sOutput = "";
@@ -136,6 +136,11 @@ CHashSearch::CHashSearch(int nThreadNum)
 	m_unXmlCnt = 1;
 	m_lnSeqNum = 0;
 	m_lnTotalAa = 0;
+	m_nStdout = 0;
+	m_sQFile = "";
+	m_sDFile = "";
+	m_sStartTime = "";
+	m_sLeft = "";
 }
 
 
@@ -195,7 +200,6 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 	is.close();
 	long int lnBlockSize = (long int)((1<<30) * 0.618);
 	uint unBlockSize = m_unDSize = lnBlockSize;
-	int nFileNum = (lnFileSize-1)/lnBlockSize + 1;
 
 	if (0 != nSplitNum)
 	{
@@ -232,7 +236,6 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 	vector<double> vFreq(strlen(murphy10r), 0);
 	VUINT vWordCnts(m_unTotalIdx, 0);
 	uint unMedian = 0;
-	uint unWrited = 0;
 	long int lnTotalAa = 0;
 
 	// data pool for processing data file
@@ -328,10 +331,10 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 			//PrintHash(vHash);
 
 			VCOMP vComp(m_unTotalIdx, VUSHORT());
-			for (int i = 0; i < vHash.size(); ++i)
+			for (uint i = 0; i < vHash.size(); ++i)
 			{
 				sort(vHash[i].begin(), vHash[i].end(), CompDbObj(vSeqs, vLens, m_unMer));
-				for (int j = 0; j < vHash[i].size(); ++j)
+				for (uint j = 0; j < vHash[i].size(); ++j)
 				{
 					uint pos1 = vHash[i][j];
 					int nIdx1 = pos1>>11;
@@ -384,7 +387,7 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 			oa << vComp;
 			
 			uint unTotalWord = 0;
-			for (int i = 0; i < vHash.size(); ++i)
+			for (uint i = 0; i < vHash.size(); ++i)
 			{
 				vWordCnts[i] += vHash[i].size();
 				unTotalWord += vHash[i].size();
@@ -403,7 +406,7 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
     }
 
 	//serialize
-	for (int i = 0; i < vFreq.size(); ++i)
+	for (uint i = 0; i < vFreq.size(); ++i)
 	{
 		vFreq[i] /= lnTotalAa;
 	}
@@ -429,16 +432,13 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 }
 
 
-int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType)
+int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mTransTable, map<char,char>& mComple, Seg* seg, Seg* segsht, vector<uchar>& vSeqs, vector<uint>& vLens, VNAMES& vNames)
 {
 	char cIdSt = '>';
 	char cSeqEd = '>';
 	// init m_bSeqType & m_nIdxScl
-	if (0 == nQueryType)
-	{
-		GuessQueryType(szFile);
-	}
-	else if (1 == nQueryType)
+	m_nQueryType = nQueryType;
+	if (1 == nQueryType)
 	{
 		// nt
         m_bSeqType = true;
@@ -461,83 +461,65 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 		cSeqEd = '+';
 	}
 
-    ifstream ifFile(szFile);
-    if (!ifFile.good())
-    {
-        ifFile.close();
-        cout << "can not open the file: " << szFile << endl;
-        return -1;
-    }
-
-	ofstream of(sOutFile.c_str());
-	if (!of.good())
-	{
-		cout << "can not write files..." << endl;
-		return -1;
-	}
-	archive::binary_oarchive oa(of);
-
-	ifFile.seekg(0, ios::end);
-	long int lnSize = ifFile.tellg();
-	ifFile.seekg(0, ios::beg);
-	int nBlock = lnSize / m_unQSize;
-	if (0 != lnSize % m_unQSize)
-	{
-		++nBlock;
-	}
-
-	oa << nBlock;
-
-	map<string, char> mTransTable;
-	map<char, char> mComple;
-	Seg* seg = NULL;
-	Seg* segsht = NULL;
-	if (true == m_bSeqType)
-	{
-		// if need, construct paras for translation from nt to aa
-		for (int i = 0; i < TOTCODON; ++i)
-		{
-			const char* p = nt[i];
-			mTransTable[string(p, 3)] = aa[i];
-		}
-
-		mComple['A'] = 'T';
-		mComple['T'] = 'A';
-		mComple['a'] = 't';
-		mComple['t'] = 'a';
-		mComple['C'] = 'G';
-		mComple['G'] = 'C';
-		mComple['c'] = 'g';
-		mComple['g'] = 'c';
-		mComple['U'] = 'A';
-		mComple['u'] = 'a';
-		
-		seg = new Seg(LGERSEED);
-		segsht = new Seg(DEFSEED);
-	}
-	
-	vector<uint> vLens;
-	vector<uchar> vSeqs;
-	VNAMES vNames;
-	uint unWrited = 0;
 	int nSeqNum = 0;
 
 	POOL vPool(m_unQSize, 0);
-	uint unLeft = 0;
-    while (ifFile.good())
+	if (!m_sLeft.empty())
+	{
+		copy(m_sLeft.begin(), m_sLeft.end(), vPool.begin());
+	}
+
+    if (input.good())
     {
-		ifFile.read(&vPool[unLeft], m_unQSize-unLeft);
-		int nRead = ifFile.gcount();
+		input.read(&vPool[0]+m_sLeft.size(), m_unQSize-m_sLeft.size());
+
+		if (m_nQueryType == 0)
+		{
+			if (vPool[0] == '>')
+			{
+				m_nQueryType = GuessQueryType(vPool);
+				if (1 == m_nQueryType)
+				{
+					// nt
+					m_bSeqType = true;
+					m_nIdxScl = 6;
+					printf("Queries are nucleotide sequences in fasta format\n");
+				}
+				else if (2 == nQueryType)
+				{
+					// aa
+					m_bSeqType = false;
+					printf("Queries are protein sequences\n");
+				}
+			}
+			else if (vPool[0] == '@')
+			{
+				// fastq
+				m_bSeqType = true;
+				m_nIdxScl = 6;
+				printf("Queries are nucleotide sequences in fastq format\n");
+				cIdSt = '@';
+				cSeqEd = '+';
+				m_nQueryType = 3;
+			}
+		}
+
+		int nRead = input.gcount();
+		if (nRead+m_sLeft.size() == 0)
+		{
+			return 0;
+		}
+
 		ITER itStop = vPool.begin();
-		if (unLeft+nRead < m_unQSize)
+		if (m_sLeft.size()+nRead < m_unQSize)
 		{
 			// for last block of data, give it a '>' to split the last sequence
-			vPool[unLeft+nRead] = cIdSt;
-			advance(itStop, unLeft+nRead+1);
+			vPool[m_sLeft.size()+nRead] = cIdSt;
+			advance(itStop, m_sLeft.size()+nRead+1);
 		}
 		else
 		{
-			if (3 == nQueryType)
+			if (3 == m_nQueryType)
 			{
 				ITER itTemp = itStop;
 				bool bFound = true;
@@ -561,9 +543,20 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 			}
 			else
 			{
-				advance(itStop, unLeft+nRead);
+				POOL::reverse_iterator rit = find(vPool.rbegin(), vPool.rend(), cIdSt);
+				while ('\n' != *(++rit))
+				{
+					rit = find(rit, vPool.rend(), '>');
+				}
+				int n = distance(rit, vPool.rbegin());
+				uint unLeft = m_unQSize + n + 1;
+				m_sLeft.clear();
+				m_sLeft.assign(vPool.begin()+(unLeft-1), vPool.end());
+				itStop = vPool.begin() + unLeft;
 			}
 		}
+		vPool.resize(distance(vPool.begin(), itStop));
+		itStop = vPool.end();
 
 		vLens.push_back(0);
 
@@ -591,7 +584,7 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 					{
 						// backward
 						reverse(vS.begin(), vS.end());
-						for (int nn = 0; nn < vS.size(); ++nn)
+						for (uint nn = 0; nn < vS.size(); ++nn)
 						{
 							map<char, char>::iterator it = mComple.find(vS[nn]);
 							if (it != mComple.end())
@@ -622,7 +615,6 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 						}
 					}
 					vTran.push_back('\0');
-					//cout << &vTran[0] << endl;
 
 					// mark the sequence
 					char* pMasked = NULL;
@@ -635,7 +627,7 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 						pMasked = segsht -> maskseq(&vTran[0]);
 					}
 
-					for (int i = 0; i < strlen(pMasked); ++i)
+					for (uint i = 0; i < strlen(pMasked); ++i)
 					{
 						if ('X' == pMasked[i] || 'x' == pMasked[i])
 						{
@@ -682,36 +674,14 @@ int CHashSearch::BuildQHash(const char* szFile, string& sOutFile, int nQueryType
 
 		Encode(vSeqs);
 		
-		//serialize
-		oa << vSeqs;
-		oa << vLens;
-		oa << vNames;
-
 		nSeqNum += vNames.size();
-		
-		vSeqs.clear();
-		vLens.clear();
-		vNames.clear();
-
-		unLeft = distance(itSt, vPool.end());
-		POOL::reverse_iterator itLast = find(vPool.rbegin(), vPool.rend(), cIdSt);
-		copy(itSt, vPool.end(), vPool.begin());
     }
-
-	if (true == m_bSeqType)
-	{
-		delete seg;
-		delete segsht;
-	}
-
-	ifFile.close();
-	of.close();
 
 	return nSeqNum;
 }
 
 
-void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& nQBlockNum)
+void CHashSearch::Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vector<uint>& vQLens, VNAMES& vQNames)
 {
 	ifstream ifD(sDbPre.c_str());
 	ifstream ifDInfo((sDbPre+".info").c_str());
@@ -741,12 +711,16 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 		if4.close();
 		return;
 	}
+	
+	// construct query package
+	CQrPckg Query(vQSeqs, vQLens, vQNames);
 
 	archive::binary_iarchive iaD(ifD);
 	archive::binary_iarchive iaDInfo(ifDInfo);
 
 	vector<double> vFreq;
 	VUINT vWordCnts(m_unTotalIdx, 0);
+	int nDbBlockNum = 0;
 	long int lnTotalAa;
 	uint unMedian;
 	long int lnSeqNum;
@@ -767,17 +741,16 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 	pool tp(m_nThreadNum);
 	cout << "start " << m_nThreadNum << "  threads" << endl;
 
-	int nSeqNum = nQBlockNum;
 	m_vOutIdx.assign(nSeqNum, CIndex());
 
 	for (int j = 0; j < nDbBlockNum; ++j)
 	{
 		// temp file stream
-		if (m_ofAln.is_open())
+		if (m_ofTemp.is_open())
 		{
-			m_ofAln << m_sOutput;
+			m_ofTemp << m_sOutput;
 			m_sOutput.clear();
-			m_ofAln.close();
+			m_ofTemp.close();
 
 			m_llOutCum = 0;
 			ofstream ofOut((m_sOutBase+".tmp"+lexical_cast<string>(j-1)+".idx").c_str());
@@ -792,7 +765,7 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 		}
 		m_nSeqBase = 0;
 
-		m_ofAln.open((m_sOutBase+".tmp"+lexical_cast<string>(j)).c_str());
+		m_ofTemp.open((m_sOutBase+".tmp"+lexical_cast<string>(j)).c_str());
 
 		// read db file and store info
 		MINDEX vDHash(m_unTotalIdx, VUINT()); // all k-mer of database
@@ -812,35 +785,14 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 
 		m_unTotalSubj += vDLens.size() - 1;
 
-		ifstream ifQ(sQPre.c_str());
-		if (!ifQ.good())
-		{
-			cout << "can not open query index file" << endl;
-			return;
-		}
-		archive::binary_iarchive iaQ(ifQ);
-		iaQ >> nQBlockNum;
 
-		vector<uint> vQLens;
-		vector<uchar> vQSeqs;
-		VNAMES vQNames;
-
-		for (int i = 0; i < nQBlockNum; ++i)
+		//for (int i = 0; i < nQBlockNum; ++i)
 		{
-			// read q file and store info
-			vQSeqs.clear();
-			vQLens.clear();
-			vQNames.clear();
-			iaQ >> vQSeqs;
-			iaQ >> vQLens;
-			iaQ >> vQNames;
-			// construct query package
-			CQrPckg Query(vQSeqs, vQLens, vQNames);
 
 			m_unTotalQuery += vQLens.size() - 1;
 			
 			// generate results
-			for (int k = 0; k < vQLens.size()-1; k+=m_nIdxScl)
+			for (uint k = 0; k < vQLens.size()-1; k+=m_nIdxScl)
 			{
 				tp.schedule(bind(&CHashSearch::Searching, this, k, Query, Db));
 				//Searching(k, Query, Db);
@@ -851,14 +803,13 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 			m_nSeqBase += vQNames.size();
 		}
 		
-		ifQ.close();
 	}
 	tp.wait();
 
-	if (m_ofAln.is_open())
+	if (m_ofTemp.is_open())
 	{
-		m_ofAln << m_sOutput;
-		m_ofAln.close();
+		m_ofTemp << m_sOutput;
+		m_ofTemp.close();
 		m_llOutCum = 0;
 
 		ofstream ofOut((m_sOutBase+".tmp"+lexical_cast<string>(nDbBlockNum-1)+".idx").c_str());
@@ -869,14 +820,14 @@ void CHashSearch::Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& n
 	}
 
 	// merge nDbBlockNum temp results
-	MergeRes(nDbBlockNum, sQPre, sDbPre);
+	MergeRes(nDbBlockNum, vQNames, sDbPre);
 
 	ifD.close();
 	ifDInfo.close();
 }
 
 
-void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
+void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
 {
 	m_dLogEvaThr = dLogEvaThr;
 	if (nMaxOut == -1)
@@ -926,47 +877,91 @@ void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, double d
 		m_vMutation.push_back(lexical_cast<uint>(pow(10.0, int(m_unMer-5-1))));
 	}
 
-	m_sOutBase.assign(szOFile);
+	m_sQFile = szQFile;
+	m_sDFile = szDBFile;
+	m_nStdout = nStdout;
+	if (szOFile != NULL)
+	{
+		m_sOutBase.assign(szOFile);
+	}
+	else
+	{
+		m_sOutBase = "";
+	}
 
-	m_ofM8.open((m_sOutBase+".m8").c_str());
-	m_ofM8 << "# RAPSearch\n# Job submitted: ";
 	time_t rawtime;
 	struct tm* timeinfo;
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
-	m_ofM8 << asctime(timeinfo);
-	m_ofM8 << "# Query : " << szQFile << endl;
-	m_ofM8 << "# Subject : " << szDBFile << endl;
-	m_ofM8 << "# Fields: Query\tSubject\tidentity\taln-len\tmismatch\tgap-openings\tq.start\tq.end\ts.start\ts.end\tlog(e-value)\tbit-score\n";
-	m_ofM8.close();
+	m_sStartTime.assign(asctime(timeinfo));
 
-	// bitset for build query hash
-	int nDbBlockNum = 1;
-
-	string sTemp = szQFile;
-	string sQOut  = sTemp + ".tmp";
-	
-	// test if another rapserach is using the query file
-	// if yes, create another temp file
-	int i = 0;
-	ifstream ifExitTest((sQOut+lexical_cast<string>(i)).c_str());
-	while (!ifExitTest.fail())
+	ifstream fIn;
+	if (m_sQFile != "stdin")
 	{
-		ifExitTest.close();
-		++i;
-		ifExitTest.open((sQOut+lexical_cast<string>(i)).c_str());
+		fIn.open(m_sQFile.c_str());
+		if (!fIn.good())
+		{
+			fIn.close();
+			cout << "can not open the file: " << m_sQFile << endl;
+			exit(1);
+		}
 	}
-	sQOut += lexical_cast<string>(i);
-	
-	//using namespace boost::chrono;
-	//thread_clock::time_point st = thread_clock::now();
-	int nQBlockNum = BuildQHash(szQFile, sQOut, nQueryType);
-	//thread_clock::time_point ed = thread_clock::now();
-	//cout << "\t" << "\t" << "\tbuilding query time:\t" << duration_cast<minutes>(ed-st).count() << " ms" << endl;
+	istream& input = (m_sQFile!="stdin") ? fIn : cin;
 
-	string sDbOut(szDBFile);
-	Search(sDbOut, nDbBlockNum, sQOut, nQBlockNum);
-	remove(sQOut.c_str());
+	map<string, char> mTransTable;
+	map<char, char> mComple;
+	Seg* seg = NULL;
+	Seg* segsht = NULL;
+	//if (true == m_bSeqType)
+	{
+		// if need, construct paras for translation from nt to aa
+		for (int i = 0; i < TOTCODON; ++i)
+		{
+			const char* p = nt[i];
+			mTransTable[string(p, 3)] = aa[i];
+		}
+
+		mComple['A'] = 'T';
+		mComple['T'] = 'A';
+		mComple['a'] = 't';
+		mComple['t'] = 'a';
+		mComple['C'] = 'G';
+		mComple['G'] = 'C';
+		mComple['c'] = 'g';
+		mComple['g'] = 'c';
+		mComple['U'] = 'A';
+		mComple['u'] = 'a';
+		
+		seg = new Seg(LGERSEED);
+		segsht = new Seg(DEFSEED);
+	}
+	
+	vector<uchar> vQSeqs;
+	vector<uint> vQLens;
+	VNAMES vQNames;
+	int nSeqNum = 0;
+	while ((nSeqNum=BuildQHash(input, nQueryType, mTransTable, mComple, seg, segsht, vQSeqs, vQLens, vQNames)) > 0)
+	{
+		string sDbOut(szDBFile);
+		Search(sDbOut, nSeqNum, vQSeqs, vQLens, vQNames);
+		vQSeqs.clear();
+		vQLens.clear();
+		vQNames.clear();
+	}
+
+	if (m_sQFile != "stdin")
+	{
+		((ifstream&)input).close();
+	}
+
+	if (seg != NULL)
+	{
+		delete seg;
+	}
+	if (segsht != NULL)
+	{
+		delete segsht;
+	}
 }
 
 
@@ -989,7 +984,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 	//BlastStat* pBlastSig = m_vpBlastSig[m_mThreadID[this_thread::get_id()]];
 	int nTreadID = -1;
 	muMonitor.lock();
-	for (int i = 0; i < m_vBlastPt.size(); ++i)
+	for (uint i = 0; i < m_vBlastPt.size(); ++i)
 	{
 		if (-1 == m_vBlastPt[i])
 		{
@@ -1053,7 +1048,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 		// for consistence with swift
 		uint unPrvSdLen = 6;
 
-		for (int i = 0; i < unQLen - m_unMer; ++i)
+		for (uint i = 0; i < unQLen - m_unMer; ++i)
 		{
 			uint unCnt = 0;
 		//thread_clock::time_point st = thread_clock::now();
@@ -1126,7 +1121,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 				{
 					continue;
 				}
-				for (int i = m_unMer; i < unLocalSeed; ++i)
+				for (uint i = m_unMer; i < unLocalSeed; ++i)
 				{
 					if((unIdx = m_aCode2Ten[pQ[unQSeedBeg+i]]) == m_uMask)
 					{
@@ -1140,7 +1135,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 			}
 
 			vector<uchar> vExtra(pQ+unQSeedBeg+m_unMer, pQ+unQSeedBeg+unLocalSeed);
-			for (int idx = 0; idx < vExtra.size(); ++idx)
+			for (uint idx = 0; idx < vExtra.size(); ++idx)
 			{
 				vExtra[idx] = m_aCode2Ten[vExtra[idx]];
 			}
@@ -1175,7 +1170,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 				continue;
 			}
 			// check non-aa char
-			for (int j = unQSeedBeg+unLocalSeed; j < unQSeedBeg+m_unMutSeedLen; ++j)
+			for (uint j = unQSeedBeg+unLocalSeed; j < unQSeedBeg+m_unMutSeedLen; ++j)
 			{
 				if((unIdx = m_aCode2Ten[pQ[j]]) == m_uMask)
 				{
@@ -1188,12 +1183,12 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 			}
 
 			vExtra.assign(pQ+unQSeedBeg+m_unMer, pQ+unQSeedBeg+m_unMutSeedLen);
-			for (int idx = 0; idx < vExtra.size(); ++idx)
+			for (uint idx = 0; idx < vExtra.size(); ++idx)
 			{
 				vExtra[idx] = m_aCode2Ten[vExtra[idx]];
 			}
 
-			for (int m = 0; m < m_vMutation.size(); ++m)
+			for (uint m = 0; m < m_vMutation.size(); ++m)
 			{
 				int nVal = (nSeed/m_vMutation[m]) % 10;
 				int nMutIdx = nSeed - nVal*m_vMutation[m];
@@ -1283,7 +1278,7 @@ struct CompSeed
 		}
 		else
 		{
-			int i = m_unMer;
+			uint i = m_unMer;
 			for (; i < m_unMer+nDiff; ++i)
 			{
 				if (m_aCode2Ten[pD[unDSeedBeg+i]] != vExtra[i-m_unMer])
@@ -1326,7 +1321,7 @@ struct CompSeed
 		}
 		else
 		{
-			int i = m_unMer;
+			uint i = m_unMer;
 			for (; i < m_unMer + nDiff; ++i)
 			{
 				if (m_aCode2Ten[pD[unDSeedBeg+i]] != vExtra[i-m_unMer])
@@ -1487,7 +1482,7 @@ int CHashSearch::ExtendSeq2Set(int nSeed, uint unLocalSeedLen, vector<uchar>& vE
 		//nSt = itSd - vDSet.begin();
 
 		ushort nExtra = 0;
-		for (int i = 0; i < vExtra.size(); ++i)
+		for (uint i = 0; i < vExtra.size(); ++i)
 		{
 			nExtra |= (vExtra[i]) << (12-(i<<2));
 		}
@@ -1774,7 +1769,7 @@ bool CHashSearch::AlignSeqs(int nSeed, CAlnPckg& QrAln, CAlnPckg& DbAln,  uint& 
 
 int CHashSearch::AlignFwd(uchar *queryseq, uchar *dataseq, uint len_queryseq, uint len_dataseq, int *extl, int *match, int score0)
 {
-	int   i, j, k, l, s, maxs, ma;
+	int   i, j, l, s, maxs, ma;
 
 	i = j = l = 0;
     ma = 0;
@@ -1805,7 +1800,7 @@ int CHashSearch::AlignFwd(uchar *queryseq, uchar *dataseq, uint len_queryseq, ui
 
 int CHashSearch::AlignBwd(uchar *queryseq, uchar *dataseq, int pos1, int pos2, int *extl, int *match, int score0)
 {
-    int   i, j, k, l, s, maxs, ma;
+    int   i, j, l, s, maxs, ma;
 
     i = pos1;
     j = pos2;
@@ -1842,13 +1837,10 @@ int CHashSearch::AlignGapped(uchar *seq1, uchar *seq2, int M, int N, int *ext1, 
     int	t, s, e, c, d, wa;
     int	*CC = new int[N + 1]; //note N + 1
     int	*DD = new int[N + 1];
-    int	maxs_row = -1000;
-    int	badscore = -1000;
     int	g = GapIni;
     int	h = GapExt;
     int	m = g + h; //gap-create + gap-extend
     int	maxs, E1, E2, match;
-    int	ib;
     char	trace_e, trace_d;
     maxs = E1 = E2 = match = 0;
 
@@ -2116,7 +2108,7 @@ void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, in
 	int nGapOpen = 0;
 	int nTotAlnLen = 0;
 
-	for (int i = 0; i < stAlnmnt.vMode.size(); ++i)
+	for (uint i = 0; i < stAlnmnt.vMode.size(); ++i)
 	{
 		nTotAlnLen += stAlnmnt.vLen[i];
 		if ('s' != stAlnmnt.vMode[i])
@@ -2162,7 +2154,7 @@ void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, in
 	}
 
 	// print aligned sequences
-	int nAllc = nTotAlnLen>unLocalSeedLen?nTotAlnLen:unLocalSeedLen;
+	uint nAllc = nTotAlnLen>unLocalSeedLen?nTotAlnLen:unLocalSeedLen;
 	VUCHAR vQ;
 	vQ.reserve(nAllc);
 	VUCHAR vD;
@@ -2185,7 +2177,7 @@ void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, in
 	}
 	else
 	{
-		for (int i = 0; i < stAlnmnt.vMode.size(); ++i)
+		for (uint i = 0; i < stAlnmnt.vMode.size(); ++i)
 		{
 			char cMode = stAlnmnt.vMode[i];
 			if ('s' == cMode)
@@ -2216,7 +2208,7 @@ void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, in
 	Decode(vD, sD);
 
 	string sInfo;
-	for (int i = 0; i < vQ.size(); ++i)
+	for (uint i = 0; i < vQ.size(); ++i)
 	{
 		if (vQ[i] == vD[i])
 		{
@@ -2398,7 +2390,7 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 		m_vOutIdx[m_nSeqBase+nQrIdx].m_nSize = nSize;
 		if (m_sOutput.size() > 100000000)
 		{
-			m_ofAln << m_sOutput;
+			m_ofTemp << m_sOutput;
 			m_llOutCum += m_sOutput.size();
 			m_sOutput.clear();
 		}
@@ -2449,7 +2441,6 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 			sort(itStart, itEnd, CompQSt());
 			stable_sort(itStart, itEnd);
 			// check overlap and logevalue
-			double dMaxEvalue = 1000;
 			vector<CHitUnit> vNew;
 			vNew.push_back(*itStart);
 			for (STIT itTemp = itStart+1; itTemp!=itEnd; ++itTemp)
@@ -2504,7 +2495,7 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 				// modify the logevalue
 				if (dSumEvalue < m_dLogEvaThr)
 				{
-					for (int i = 0; i < vNew.size(); ++i)
+					for (uint i = 0; i < vNew.size(); ++i)
 					{
 						vNew[i].dEValue = dSumEvalue;
 					}
@@ -2547,16 +2538,61 @@ void CHashSearch::GuessTotSeq(const char* szDBFile, long int& lnSeqNum, long int
 
 
 
-void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre)
+void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 {
-	m_ofAln.open((m_sOutBase+".aln").c_str());
-	m_ofM8.open((m_sOutBase+".m8").c_str(), ios::ate|ios::app);
+	ostream* poAln = NULL;
+	ostream* poM8 = NULL;
+
+	if (m_nStdout == 2)
+	{
+		poAln = &cout;
+	}
+	else if (!m_sOutBase.empty() && m_nMaxOut != 0)
+	{
+		poAln = new ofstream((m_sOutBase+".aln").c_str());
+		if (!poAln->good())
+		{
+			((ofstream*)poAln)->close();
+			delete poAln;
+			cout << "can not open the file: " << m_sOutBase+".aln" << endl;
+			exit(1);
+		}
+	}
+
+	if (m_nStdout == 1)
+	{
+		poM8 = &cout;
+	}
+	else if (!m_sOutBase.empty() && m_nMaxM8 != 0)
+	{
+		poM8 = new ofstream((m_sOutBase+".m8").c_str());
+		if (!poM8->good())
+		{
+			((ofstream*)poM8)->close();
+			delete poM8;
+			cout << "can not open the file: " << m_sOutBase+".m8" << endl;
+			exit(1);
+		}
+	}
+
+	if (poM8 && !m_sStartTime.empty())
+	{
+		(*poM8) << "# RAPSearch\n# Job submitted: "
+			<< m_sStartTime
+			<< "# Query : " << m_sQFile << "\n"
+			<< "# Subject : " << m_sDFile << "\n"
+			<< "# Fields: Query\tSubject\tidentity\taln-len\tmismatch\tgap-openings\tq.start\tq.end\ts.start\ts.end\tlog(e-value)\tbit-score\n";
+
+		m_sStartTime = "";
+	}
+
 	if (m_bXml)
 	{
 		m_ofXml.open((m_sOutBase+".xml").c_str());
 		PrintXmlBegin(sDbPre);
 	}
 
+	long long unMax = max(m_nMaxOut, m_nMaxM8);
 	vector<CHitUnit> v;
 	vector<CMergeUnit*> vMergeUnit;
 
@@ -2574,39 +2610,6 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre)
 	}
 
 	/**************************************************************/
-	VNAMES vQAllNames;
-	if (true == m_bPrintEmpty)
-	{
-		ifstream ifQ(sQPre.c_str());
-		if (!ifQ.good())
-		{
-			cout << "can not open query index file" << endl;
-			return;
-		}
-		archive::binary_iarchive iaQ(ifQ);
-		int nQBlockNum;
-		iaQ >> nQBlockNum;
-
-		vector<uint> vQLens;
-		vector<uchar> vQSeqs;
-		VNAMES vQNames;
-
-		for (int i = 0; i < nQBlockNum; ++i)
-		{
-			// read q file and store info
-			vQSeqs.clear();
-			vQLens.clear();
-			vQNames.clear();
-			iaQ >> vQSeqs;
-			iaQ >> vQLens;
-			iaQ >> vQNames;
-
-			vQAllNames.insert(vQAllNames.end(), vQNames.begin(), vQNames.end());
-		}
-		
-		ifQ.close();
-	}
-	/**************************************************************/
 	for (int i = 0; i < nLastIdx; ++i)
 	{
 		for (int j = 0; j < nDbBlockNum; ++j)
@@ -2614,24 +2617,30 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre)
 			vMergeUnit[j]->Update(i, v);
 		}
 
-		int n = min(m_nMaxM8, (long long)v.size());
-
 		/***********************************************************/
-		if (0 == n)
+		if (0 == v.size())
 		{
-			if (true == m_bPrintEmpty)
+			if (poAln && true == m_bPrintEmpty)
 			{
-				m_ofAln << vQAllNames[i] << "\tNO HIT" << endl << endl;
+				(*poAln) << vQNames[i] << "\tNO HIT" << "\n\n";
 			}
 			continue;
 		}
 		/***********************************************************/
 
+		uint n = min(unMax, (long long)v.size());
 		partial_sort(v.begin(), v.begin()+n, v.end());
 		v.resize(n);
 
-		PrintAln(v);
-		PrintM8(v);
+		if (poAln)
+		{
+			PrintAln(v, *poAln);
+		}
+
+		if (poM8)
+		{
+			PrintM8(v, *poM8);
+		}
 
 		if (m_bXml)
 		{
@@ -2646,8 +2655,19 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre)
 		delete vMergeUnit[i];
 	}
 
-	m_ofAln.close();
-	m_ofM8.close();
+	if (poAln && m_nStdout != 2)
+	{
+		((ofstream*)poAln)->close();
+		delete poAln;
+		poAln = NULL;
+	}
+
+	if (poM8 && m_nStdout != 1)
+	{
+		((ofstream*)poM8)->close();
+		delete poM8;
+		poM8 = NULL;
+	}
 	if (m_bXml)
 	{
 		PrintXmlEnd();
@@ -2657,25 +2677,34 @@ void CHashSearch::MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre)
 
 
 //----------------------------------------------------------------------
-void CHashSearch::GuessQueryType(const char* szFile)
+int CHashSearch::GuessQueryType(POOL& vPool)
 {
-	FILE* fp = fopen(szFile, "rt");
-    char	seq[10001], str[1001];
-    while (!feof(fp))
-    {
-        str[0] = 0;
-        fgets(str, 1000, fp);
-		// add by yongzhao, get rid off '\n'
-		str[strlen(str)-1] = 0;
-        if(str[0] == '>' || str[0] == '\n') continue;
-        else strcat(seq, str);
-        if(strlen(seq) >= 9000) break;
-    }
-    rewind(fp);
+	// read some reads
+	vector<uchar> seq;
+	ITER itStop = vPool.end();
+	ITER itSt = find(vPool.begin(), itStop, '>');
+	ITER itEd = find(itSt+1, itStop, '>');
+	while (itEd!=itStop && seq.size()<10000)
+	{
+		ITER itBeg = find(itSt, itEd, '\n');
+		while (itBeg == itEd)
+		{
+			itEd = find(itEd+1, itStop, '>');
+			itBeg = find(itBeg, itEd, '\n');
+		}
+		++itBeg;
+		int nIter = seq.size();
+		seq.insert(seq.end(), itBeg, itEd-1);
+		seq.erase(remove(seq.begin()+nIter, seq.end(), '\n'), seq.end());
+
+		itSt = itEd;
+		itEd = find(itSt+1, itStop, '>');
+	}
+
     char	nuc[] = "ATCGatcgUu";
     int	i, j;
     int	add = 0;
-    for(i = 0; i < strlen(seq); i ++)
+    for(i = 0; i < seq.size(); i ++)
     {
         for(j = 0; j < 10; j ++)
         {
@@ -2684,35 +2713,25 @@ void CHashSearch::GuessQueryType(const char* szFile)
         if(j < 10) add += 1;
     }
 
-    if(add > strlen(seq) * 0.95)
+    if(add > seq.size() * 0.95)
     {
-        m_bSeqType = true;
-        printf("Queries are nucleotide sequences\n");
+		return 1;
     }
     else
     {
-        m_bSeqType = false;
-        printf("Queries are protein sequences\n");
+		return 2;
     }
-
-	// used for convert index from with-fram to non-frame
-	if (m_bSeqType == true)
-	{
-		m_nIdxScl = 6;
-	}
-
-	fclose(fp);
 }
 
 
-void CHashSearch::PrintAln(vector<CHitUnit>& v)
+void CHashSearch::PrintAln(vector<CHitUnit>& v, ostream& of)
 {
 	int nPrint = min((long long)v.size(), m_nMaxOut);
 	for (int i = 0; i < nPrint; ++i)
 	{
 		CHitUnit& c = v[i];
 
-		m_ofAln << c.sQName
+		of << c.sQName
 			<< " vs "
 			<< c.sDName
 			<< " bits="	<< c.dBits
@@ -2731,14 +2750,14 @@ void CHashSearch::PrintAln(vector<CHitUnit>& v)
 }
 
 
-void CHashSearch::PrintM8(vector<CHitUnit>& v)
+void CHashSearch::PrintM8(vector<CHitUnit>& v, ostream& of)
 {
 	int nPrint = min((long long)v.size(), m_nMaxM8);
 	for (int i = 0; i < nPrint; ++i)
 	{
 		CHitUnit& c = v[i];
 
-		m_ofM8 << c.sQName
+		of << c.sQName
 			<< "\t" << c.sDName
 			<< "\t" << c.dIdent
 			<< "\t"	<< c.nAlnLen
@@ -2830,7 +2849,7 @@ void CHashSearch::PrintXml(vector<CHitUnit>& v, int nIdx)
 		PrintXmlLine("Hsp_query-frame", c.nFrame);
 		int nPos = 0;
 		int nIdt = 0;
-		for (int j = 0; j < c.sInfo.size(); ++j)
+		for (uint j = 0; j < c.sInfo.size(); ++j)
 		{
 			if (c.sInfo[j] != ' ')
 			{

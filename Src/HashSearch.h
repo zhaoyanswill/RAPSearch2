@@ -13,6 +13,7 @@
 #include "paras.h"
 #include "cindex.h"
 #include "hitUnit.h"
+#include "Seg.h"
 using namespace std;
 
 
@@ -125,7 +126,7 @@ public:
 	}
 
 	// do the protein database search
-	void Process(char* szDBFile, char* szQFile, char* szOFile, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 50000000, uint unMer = 6);
+	void Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 500000000, uint unMer = 6);
 	// indexing the database
 	void Process(char* szDBFile, char* szDbHash, int nSplitNum = 0, uint unMer = 6);
 
@@ -133,9 +134,9 @@ private:
 	// read file and build the hash table
 	int BuildDHash(const char* szDbFile, string& sOutFile, int nSplitNum); 
 	// read file and build the hash table
-	int BuildQHash(const char* szQrFile, string& sOutFile, int nQueryType); 
+	int BuildQHash(istream& input, int nQueryType, map<string,char>& mTransTable, map<char,char>& mComple, Seg* seg, Seg* segsht, vector<uchar>& vQSeqs, vector<uint>& vQLens, VNAMES& vQNames); 
 	// probe that what is the type of query
-	void GuessQueryType(const char* szFile);
+	int GuessQueryType(POOL& vPool);
 	// char -> compressed code
 	void Encode(const string& sIn, vector<uchar>& v); 
 	// char -> compressed code
@@ -152,7 +153,7 @@ private:
 	int Tran2Ten(CAlnPckg& QrAln); 
 
 	// search all sequences in database
-	void Search(string& sDbPre, int& nDbBlockNum, string& sQPre, int& nQBlockNum);
+	void Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vector<uint>& vQLens, VNAMES& vQNames);
 	// search for each search in database
 	void Searching(int nQrIdx, CQrPckg& Query, CDbPckg& Db); 
 	void ExtendSetPair(int nLen, CQrPckg& Query, CDbPckg& Db); 
@@ -188,13 +189,13 @@ private:
 	void GuessTotSeq(const char* szFile, long int& lnSeqNum, long int& lnAaNum);
 
 	// merge the result files
-	void MergeRes(int nDbBlockNum, string& sQPre, string& sDbPre);
+	void MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre);
 
 	// init alignment parameters
 	void InitAlignPara(bool bType, long int lnSLen, int nSNum, int nThreadNum);
 
-	void PrintAln(vector<CHitUnit>& v);
-	void PrintM8(vector<CHitUnit>& v);
+	void PrintAln(vector<CHitUnit>& v, ostream& of);
+	void PrintM8(vector<CHitUnit>& v, ostream& of);
 
 	template<class T>
 	void PrintXmlLine(char* sTag, T s);
@@ -213,6 +214,7 @@ private:
 	// if dna, 6; if protein, 1
 	int m_nIdxScl;
 	uint m_unTotalIdx;
+	int m_nQueryType;
 
 	uchar m_uMask;
 	uchar m_aChar2Code[256]; // char -> compressed code
@@ -256,8 +258,11 @@ private:
 	long long m_nMaxM8;
 	bool m_bPrintEmpty;
 	bool m_bGapExt;
-	ofstream m_ofAln;
-	ofstream m_ofM8;
+	string m_sStartTime;
+	string m_sQFile;
+	string m_sDFile;
+	ofstream m_ofTemp;
+	int m_nStdout;
 
 	bool m_bXml;
 	ofstream m_ofXml;
@@ -273,6 +278,7 @@ private:
 	long long m_llOutCum;
 	long long m_llM8Cum;
 	int m_nSeqBase;
+	string m_sLeft;
 
 	// for multithread
 	int m_nThreadNum;
@@ -383,7 +389,7 @@ inline void CHashSearch::Encode(const string& sIn, vector<uchar>& v)
 {
 	v.reserve(sIn.size());
 
-	for (int i = 0; i < sIn.size(); ++i)
+	for (uint i = 0; i < sIn.size(); ++i)
 	{
 		v.insert(v.end(), m_aChar2Code[sIn[i]]);
 	}
@@ -393,7 +399,7 @@ inline void CHashSearch::Encode(const string& sIn, vector<uchar>& v)
 inline void CHashSearch::Decode(const vector<uchar>& v, string& sOut)
 {
 	sOut.reserve(v.size());
-	for (int i = 0; i < v.size(); ++i)
+	for (uint i = 0; i < v.size(); ++i)
 	{
 		sOut += m_aCode2Char[v[i]];
 	}
@@ -403,7 +409,7 @@ inline void CHashSearch::Decode(const vector<uchar>& v, string& sOut)
 inline void CHashSearch::Encode(vector<uchar>& v)
 {
 	//cout << v.size() << endl;
-	for (int i = 0; i < v.size(); ++i)
+	for (uint i = 0; i < v.size(); ++i)
 	{
 		v[i] = m_aChar2Code[v[i]];
 	}
@@ -414,7 +420,7 @@ inline long int CHashSearch::Encode(vector<uchar>& v, vector<double>& vFreq)
 {
 	long int lnTotalAa = 0;
 	//cout << v.size() << endl;
-	for (int i = 0; i < v.size(); ++i)
+	for (uint i = 0; i < v.size(); ++i)
 	{
 		v[i] = m_aChar2Code[v[i]];
 		if (m_uMask != v[i])
@@ -431,7 +437,7 @@ inline long int CHashSearch::Encode(vector<uchar>& v, vector<double>& vFreq)
 inline void CHashSearch::Decode(vector<uchar>& v)
 {
 	//cout << v.size() << endl;
-	for (int i = 0; i < v.size(); ++i)
+	for (uint i = 0; i < v.size(); ++i)
 	{
 		v[i] = m_aCode2Char[v[i]];
 	}

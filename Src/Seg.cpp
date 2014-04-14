@@ -78,8 +78,6 @@ void Seg::getwin_init(void)
 char* Seg::maskseq(const char *fastaseq)
 {
     Segment *segs;
-    int ctime;
-
     Sequen *seq = openseq(fastaseq);
 
     segs = (Segment *) NULL;
@@ -172,7 +170,6 @@ int Seg::min(int a, int b)
 Sequen* Seg::openwin(Sequen *parent, int start, int length)
 {
     Sequen *win;
-    int i;
 
     if (start<0 || length<0 || start+length>parent->length)
     {
