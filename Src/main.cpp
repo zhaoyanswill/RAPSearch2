@@ -20,7 +20,7 @@ using namespace std;
 #define OPTION_MINLEN "l"
 #define OPTION_XML "x"
 #define	Program	"rapsearch"
-#define	Version "2.17"
+#define	Version "2.18"
 
 void printUsage(char *error);
 

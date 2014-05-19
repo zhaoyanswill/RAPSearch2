@@ -42,7 +42,7 @@ CHashSearch::CHashSearch(int nThreadNum)
 {
 	// for any letter which is not in the 20 aa
 	m_uMask = 10;
-	//m_uMask = 238;
+	m_uSeg = 8;
 	fill_n(m_aChar2Code, 256, (m_uMask<<4));
 	fill_n(m_aCode2Char, 256, m_uMask);
 	fill_n(m_aCode2Ten, 256, m_uMask);
@@ -58,12 +58,18 @@ CHashSearch::CHashSearch(int nThreadNum)
 		char* p = murphy10s[i];
 		for (uint j = 0; j < strlen(p); ++j) 
 		{
+			// use new format to fix alignment break in SEGed region
+			// the first four bits: group id
+			// then one bit: SEGed? 1 : 0
+			// then three bits: offset in a group
 			uint unIdx = (i << 4) + j+1;
 			m_aChar2Code[p[j]] = unIdx;
-			// add lower-case character
-			m_aChar2Code[p[j]+32] = unIdx;
+			m_aChar2Code[p[j]+32] = unIdx;	// add lower-case character
 			m_aCode2Char[unIdx] = p[j];
 			m_aCode2Ten[unIdx] = i;
+
+			unIdx |= m_uSeg;	// set SEGed bit
+			m_aChar2Code[p[j]+128] = unIdx;	// SEGed letter
 		}
 	}
 
@@ -472,6 +478,17 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
     if (input.good())
     {
 		input.read(&vPool[0]+m_sLeft.size(), m_unQSize-m_sLeft.size());
+		int nRead = input.gcount();
+		if (nRead+m_sLeft.size() == 0)
+		{
+			return 0;
+		}
+
+		if (m_sLeft.size()+nRead < m_unQSize)
+		{
+			// for last block of data, give it a '>' to split the last sequence
+			vPool[m_sLeft.size()+nRead] = cIdSt;
+		}
 
 		if (m_nQueryType == 0)
 		{
@@ -504,17 +521,9 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 			}
 		}
 
-		int nRead = input.gcount();
-		if (nRead+m_sLeft.size() == 0)
-		{
-			return 0;
-		}
-
 		ITER itStop = vPool.begin();
 		if (m_sLeft.size()+nRead < m_unQSize)
 		{
-			// for last block of data, give it a '>' to split the last sequence
-			vPool[m_sLeft.size()+nRead] = cIdSt;
 			advance(itStop, m_sLeft.size()+nRead+1);
 		}
 		else
@@ -631,7 +640,8 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 					{
 						if ('X' == pMasked[i] || 'x' == pMasked[i])
 						{
-							vTran[i] = pMasked[i];
+							//vTran[i] = pMasked[i];
+							vTran[i] += 128;
 						}
 					}
 
@@ -1044,6 +1054,18 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 
 		uchar* pQ = &Query.m_vSeqs[0] + Query.m_vLens[nQrIdx];
 		CAlnPckg QrAln(pQ, unQLen, 0);
+		
+		// build invalid index position
+		vector<char> vValid(unQLen, 0);
+		for (uint xx = 0; xx < unQLen; ++xx)
+		{
+			vValid[xx] = m_aCode2Ten[pQ[xx]];
+			if (0 != (m_uSeg&pQ[xx]))
+			{
+				pQ[xx] &= ~m_uSeg;
+				vValid[xx] = m_uMask;
+			}
+		}
 
 		// for consistence with swift
 		uint unPrvSdLen = 6;
@@ -1054,7 +1076,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 		//thread_clock::time_point st = thread_clock::now();
 			// pick seed length
 			uint unQSeedBeg = QrAln.m_unSeedBeg = i;
-			int nSeed = Tran2Ten(QrAln);
+			int nSeed = Tran2Ten(QrAln, vValid);
 			if (-1 == nSeed)
 			{
 				continue;
@@ -1078,7 +1100,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 					double 	dExpFreq = unFreq;
 					for(unIncr = 1; unIncr < unRng; unIncr ++)
 					{
-						if((unIdx = m_aCode2Ten[pQ[unQSeedBeg+m_unMer+unIncr-1]]) != m_uMask)
+						if((unIdx = vValid[unQSeedBeg+m_unMer+unIncr-1]) != m_uMask)
 						{
 							dFold = Db.m_vFreq[unIdx];
 						}
@@ -1123,7 +1145,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 				}
 				for (uint i = m_unMer; i < unLocalSeed; ++i)
 				{
-					if((unIdx = m_aCode2Ten[pQ[unQSeedBeg+i]]) == m_uMask)
+					if((unIdx = vValid[unQSeedBeg+i]) == m_uMask)
 					{
 						break;
 					}
@@ -1143,7 +1165,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 			if (!Db.m_vHash[nSeed].empty())
 			{
 				int nCnt = ExtendSeq2Set(nSeed, unLocalSeed, vExtra,
-						nQrIdx, QrAln, nQOriLen,
+						nQrIdx, QrAln, nQOriLen, vValid,
 						Db.m_vHash[nSeed], Db,
 						Query.m_vNames, Db.m_vNames,
 						mRes, nTreadID);
@@ -1172,7 +1194,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 			// check non-aa char
 			for (uint j = unQSeedBeg+unLocalSeed; j < unQSeedBeg+m_unMutSeedLen; ++j)
 			{
-				if((unIdx = m_aCode2Ten[pQ[j]]) == m_uMask)
+				if((unIdx = vValid[j]) == m_uMask)
 				{
 					break;
 				}
@@ -1207,7 +1229,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 					}
 
 					int nCnt = ExtendSeq2Set(nMutIdx, m_unMutSeedLen, vExtra,
-							nQrIdx, QrAln, nQOriLen,
+							nQrIdx, QrAln, nQOriLen, vValid,
 							Db.m_vHash[nMutIdx], Db,
 							Query.m_vNames, Db.m_vNames,
 							mRes, nTreadID);
@@ -1236,7 +1258,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 					// change the 6th position
 					vExtra[0] = i;
 					int nCnt = ExtendSeq2Set(nSeed, m_unMutSeedLen, vExtra,
-							nQrIdx, QrAln, nQOriLen,
+							nQrIdx, QrAln, nQOriLen, vValid,
 							Db.m_vHash[nSeed], Db,
 							Query.m_vNames, Db.m_vNames,
 							mRes, nTreadID);
@@ -1466,7 +1488,7 @@ struct CompShortUp
 };
 
 int CHashSearch::ExtendSeq2Set(int nSeed, uint unLocalSeedLen, vector<uchar>& vExtra,
-		int nQSeqIdx, CAlnPckg& QrAln, int nQOriLen,
+		int nQSeqIdx, CAlnPckg& QrAln, int nQOriLen, vector<char>& vValid,
 		VUINT& vDSet, CDbPckg& Db,
 		VNAMES& vQNames, VNAMES& vDNames,
 		MRESULT& mRes, int nTreadID)
@@ -1568,6 +1590,11 @@ int CHashSearch::ExtendSeq2Set(int nSeed, uint unLocalSeedLen, vector<uchar>& vE
 	STAlnmnt stAlnmnt;
 	for (int j = nSt; j < nEd; ++j)
 	{
+		if (vDNames[vDSet[j]>>11] == "7719.ENSCINP00000006706")
+		{
+			int zya = 0;
+		}
+				
 		uint unDLen, unDSeedBeg;
 		uchar* pD = GetSeq(Db.m_vSeqs, Db.m_vLens, Db.m_vNames, vDSet[j], unDLen, unDSeedBeg);
 		
@@ -1577,10 +1604,13 @@ int CHashSearch::ExtendSeq2Set(int nSeed, uint unLocalSeedLen, vector<uchar>& vE
 			continue;
 		}
 		// have the same previous char, so don't extend them at this time
-		if (m_bAcc==false && 0 != QrAln.m_unSeedBeg && m_uMask != QrAln.m_pSeq[QrAln.m_unSeedBeg-1]
-			&& 0 != unDSeedBeg && m_uMask != pD[unDSeedBeg-1]
+		if (4 != vExtra.size()	 // if this is a mutation case, do not allow to ignore it
+			&& m_bAcc==false 
+			&& 0 != QrAln.m_unSeedBeg
+			&& 0 != unDSeedBeg
 			&& m_aCode2Ten[QrAln.m_pSeq[QrAln.m_unSeedBeg-1]] == m_aCode2Ten[pD[unDSeedBeg-1]]
-			&& 4 != vExtra.size()) // if this is a mutation case, do not allow to ignore it
+			&& m_uMask != vValid[QrAln.m_unSeedBeg-1]
+			)
 		{
 			continue;
 		}

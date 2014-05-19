@@ -138,19 +138,15 @@ private:
 	// probe that what is the type of query
 	int GuessQueryType(POOL& vPool);
 	// char -> compressed code
-	void Encode(const string& sIn, vector<uchar>& v); 
-	// char -> compressed code
 	void Encode(VUCHAR& v); 
 	// char -> compressed code & count DB
 	long int Encode(VUCHAR& v, vector<double>& vFreq); 
 	// compressed code -> char
 	void Decode(const vector<uchar>& v, string& sOut); 
-	// compressed code -> char
-	void Decode(vector<uchar>& v); 
 	// char -> 10-base index
 	int Tran2Ten(const vector<uchar>& v, uint nBeg); 
 	// char -> 10-base index
-	int Tran2Ten(CAlnPckg& QrAln); 
+	int Tran2Ten(CAlnPckg& QrAln, vector<char>& vValid); 
 
 	// search all sequences in database
 	void Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vector<uint>& vQLens, VNAMES& vQNames);
@@ -159,7 +155,7 @@ private:
 	void ExtendSetPair(int nLen, CQrPckg& Query, CDbPckg& Db); 
 	// search for each seed in a entry of database
 	int  ExtendSeq2Set(int nSeed, uint unSeedLen, vector<uchar>& vExtra,
-			int nQSeqIdx, CAlnPckg& QrAln, int nQOriLen,
+			int nQSeqIdx, CAlnPckg& QrAln, int nQOriLen, vector<char>& vValid,
 			VUINT& vDSet, CDbPckg& Db,
 			VNAMES& vQNames, VNAMES& vDNmaes,
 			MRESULT& mRes, int nTreadID);
@@ -217,6 +213,7 @@ private:
 	int m_nQueryType;
 
 	uchar m_uMask;
+	uchar m_uSeg;
 	uchar m_aChar2Code[256]; // char -> compressed code
 	uchar m_aCode2Char[256]; // compressed code -> char
 	uchar m_aCode2Ten[256]; // char -> 10-base
@@ -366,7 +363,7 @@ inline int CHashSearch::Tran2Ten(const vector<uchar>& v, uint nBeg)
 }
 
 
-inline int CHashSearch::Tran2Ten(CAlnPckg& QrAln)
+inline int CHashSearch::Tran2Ten(CAlnPckg& QrAln, vector<char>& vValid)
 {
 	if (QrAln.m_unSeedBeg >= QrAln.m_unLen-m_unMer+1)
 	{
@@ -375,24 +372,13 @@ inline int CHashSearch::Tran2Ten(CAlnPckg& QrAln)
 	uint un = 0;
 	for (uint i = 0; i < m_unMer; ++i)
 	{
-		if (m_uMask == m_aCode2Ten[QrAln.m_pSeq[QrAln.m_unSeedBeg+i]])
+		if (m_uMask == vValid[QrAln.m_unSeedBeg+i])
 		{
 			return -1;
 		}
 		un = un*10 + m_aCode2Ten[QrAln.m_pSeq[QrAln.m_unSeedBeg+i]];
 	}
 	return un;
-}
-
-
-inline void CHashSearch::Encode(const string& sIn, vector<uchar>& v)
-{
-	v.reserve(sIn.size());
-
-	for (uint i = 0; i < sIn.size(); ++i)
-	{
-		v.insert(v.end(), m_aChar2Code[sIn[i]]);
-	}
 }
 
 
@@ -431,16 +417,6 @@ inline long int CHashSearch::Encode(vector<uchar>& v, vector<double>& vFreq)
 	}
 
 	return lnTotalAa;
-}
-
-
-inline void CHashSearch::Decode(vector<uchar>& v)
-{
-	//cout << v.size() << endl;
-	for (uint i = 0; i < v.size(); ++i)
-	{
-		v[i] = m_aCode2Char[v[i]];
-	}
 }
 
 
