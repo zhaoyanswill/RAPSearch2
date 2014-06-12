@@ -37,6 +37,9 @@ the Free Software Foundation.
    rapsearch:    the similarity search tool
    prerapsearch: the program that generates similarity search database files to be used by rapsearch
 
+   Install RAPSearch2 on Mac OS X:
+   https://github.com/zhaoyanswill/RAPSearch2/issues/3
+   
 >> Using prerapsearch & rapsearch
 
  1.Before using rapsearch for similarity search against a database, 
