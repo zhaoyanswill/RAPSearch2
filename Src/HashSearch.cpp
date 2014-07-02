@@ -837,9 +837,18 @@ void CHashSearch::Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vec
 }
 
 
-void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
+void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, double dThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
 {
-	m_dLogEvaThr = dLogEvaThr;
+	m_bEvalue = bEvalue;
+	if (m_bEvalue == true)
+	{
+		m_pComptor = new CompEval();
+	}
+	else
+	{
+		m_pComptor = new CompBits();
+	}
+	m_dThr = dThr;
 	if (nMaxOut == -1)
 	{
 		m_nMaxOut = LLONG_MAX;
@@ -2149,7 +2158,7 @@ void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, in
 	}
 
 	// evalue criteria
-	if (m_bHssp == false && !(stAlnmnt.nScore>SUMHSP_MINRAWSCORE || dEValue<m_dLogEvaThr))
+	if (m_bHssp == false && !(stAlnmnt.nScore>SUMHSP_MINRAWSCORE || (m_bEvalue==true && dEValue<=m_dThr) || (m_bEvalue==false && dBits>=m_dThr)))
 	{
 		return;
 	}
@@ -2373,14 +2382,14 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 	uint nMax = max(m_nMaxOut, m_nMaxM8);
 	nMax = min((uint)vTemp.size(), nMax);
 	vector<CHitUnit>::iterator itPrint = vTemp.begin()+nMax;
-	partial_sort(vTemp.begin(), itPrint, vTemp.end());
+	partial_sort(vTemp.begin(), itPrint, vTemp.end(), ComptorWrapper(m_pComptor));
 
 	int nBegStrAligned = 6;
 	vector<CHitUnit>::iterator itSt = vTemp.begin();
 	for (; itSt != itPrint; ++itSt)
 	{
 		CHitUnit& st= *itSt;
-		if (st.dEValue >= m_dLogEvaThr)
+		if ((m_bEvalue==true && st.dEValue>m_dThr) || (m_bEvalue==false && st.dBits<m_dThr))
 		{
 			break;
 		}
@@ -2459,7 +2468,7 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 			}
 			else if (distance(itStart, itEnd) == 1)
 			{
-				if (itStart->dEValue < m_dLogEvaThr)
+				if ((m_bEvalue==true && itStart->dEValue<=m_dThr) || (m_bEvalue==false && itStart->dBits>=m_dThr))
 				{
 					vRes.push_back(*itStart);
 				}
@@ -2469,7 +2478,7 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 			}
 			// sort by score and start position of query
 			sort(itStart, itEnd, CompQSt());
-			stable_sort(itStart, itEnd);
+			stable_sort(itStart, itEnd, ComptorWrapper(m_pComptor));
 			// check overlap and logevalue
 			vector<CHitUnit> vNew;
 			vNew.push_back(*itStart);
@@ -2500,7 +2509,7 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 			}
 			if (vNew.size() == 1)
 			{
-				if (vNew[0].dEValue < m_dLogEvaThr)
+				if ((m_bEvalue==true && vNew[0].dEValue<=m_dThr) || (m_bEvalue==false && vNew[0].dBits>=m_dThr))
 				{
 					vRes.push_back(vNew[0]);
 				}
@@ -2515,21 +2524,38 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 				{
 					aRawScore[nNo] = vNew[nNo].nScore;
 				}
-				//double dSumEvalue = log(m_vpBlastSig[nTreadID]->sumScore2Expect(nNo, aRawScore, nLen)) / LOG10;
-				double dTmp = m_vpBlastSig[nTreadID]->sumScore2Expect(nNo, aRawScore, nLen);
-				double dSumEvalue = -10000.00;
-				if (0 != dTmp)
+
+				if (m_bEvalue == true)
 				{
-					dSumEvalue = log(dTmp) / LOG10;
-				}
-				// modify the logevalue
-				if (dSumEvalue < m_dLogEvaThr)
-				{
-					for (uint i = 0; i < vNew.size(); ++i)
+					double dTmp = m_vpBlastSig[nTreadID]->sumScore2Expect(nNo, aRawScore, nLen);
+					double dSumEvalue = -10000.00;
+					if (0 != dTmp)
 					{
-						vNew[i].dEValue = dSumEvalue;
+						dSumEvalue = log(dTmp) / LOG10;
 					}
-					vRes.insert(vRes.end(), vNew.begin(), vNew.end());
+					// modify the logevalue
+					if (dSumEvalue < m_dThr)
+					{
+						for (uint i = 0; i < vNew.size(); ++i)
+						{
+							vNew[i].dEValue = dSumEvalue;
+						}
+						vRes.insert(vRes.end(), vNew.begin(), vNew.end());
+					}
+				}
+				else
+				{
+					double dTmpScore = m_vpBlastSig[nTreadID]->sumScore(nNo, aRawScore, nLen);
+					double dTmpBits = m_vpBlastSig[nTreadID]->rawScore2Bit(dTmpScore);
+					// modify the logevalue
+					if (dTmpBits >= m_dThr)
+					{
+						for (uint i = 0; i < vNew.size(); ++i)
+						{
+							vNew[i].dBits = dTmpBits;
+						}
+						vRes.insert(vRes.end(), vNew.begin(), vNew.end());
+					}
 				}
 			}
 			itStart = itEnd;
@@ -2659,7 +2685,7 @@ void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 		/***********************************************************/
 
 		uint n = min(unMax, (long long)v.size());
-		partial_sort(v.begin(), v.begin()+n, v.end());
+		partial_sort(v.begin(), v.begin()+n, v.end(), ComptorWrapper(m_pComptor));
 		v.resize(n);
 
 		if (poAln)
@@ -2836,7 +2862,14 @@ void CHashSearch::PrintXmlBegin(string& sDbPre)
 	PrintXmlTag("Output_param");
 	PrintXmlTag("Parameters");
 	PrintXmlLine("Parameters_matrix", "BLOSUM62");
-	PrintXmlLine("Parameters_log-expect", lexical_cast<string>(m_dLogEvaThr));
+	if (m_bEvalue == true)
+	{
+		PrintXmlLine("Parameters_log-expect evalue", lexical_cast<string>(m_dThr));
+	}
+	else
+	{
+		PrintXmlLine("Parameters_bits-expect", lexical_cast<string>(m_dThr));
+	}
 	PrintXmlLine("Parameters_gap-open", "11");
 	PrintXmlLine("Parameters_gap-extend", "1");
 	PrintXmlLine("Parameters_filter", "T");

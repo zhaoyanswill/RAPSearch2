@@ -19,8 +19,9 @@ using namespace std;
 #define OPTION_HSSP "w"
 #define OPTION_MINLEN "l"
 #define OPTION_XML "x"
+#define OPTION_BITS "i"
 #define	Program	"rapsearch"
-#define	Version "2.18"
+#define	Version "2.19"
 
 void printUsage(char *error);
 
@@ -47,6 +48,8 @@ int main(int argc, char** argv)
 	int nMinLen = 0;
 	int bXml = false;
 	int nStdout = 0;
+	double dBitsCut = 0.0;
+	bool bBitsCut = false;
 
     int	i;
     for (i = 0; i < argc; i ++)
@@ -174,18 +177,31 @@ int main(int argc, char** argv)
         {
 			sscanf(argv[i+1], "%d", &nStdout);
         }
+		else if(argv[i][1] == OPTION_BITS[0] && argc > i + 1) // bits 
+		{
+			sscanf(argv[i+1], "%lf", &dBitsCut);
+			bBitsCut = true;
+		}
     }
 
     if (!szQrFile)	printUsage("Error: No query");
     if (!szDbHash)	printUsage("Error: No database");
     if (!szOutFile && nStdout == 0)	printUsage("Error: No output");
 
+	bool bEvalue = true;
+	double dThr = dLogEvalueCut;
+	if (bBitsCut == true)
+	{
+		bEvalue = false;
+		dThr = dBitsCut;
+	}
+
     time_t jobstart = time(NULL);
 
     printf("QueryFileName %s\n", szQrFile);
 
 	CHashSearch hs(nThreadNum);
-	hs.Process(szDbHash, szQrFile, szOutFile, nStdout, dLogEvalueCut, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen, bXml);
+	hs.Process(szDbHash, szQrFile, szOutFile, nStdout, bEvalue, dThr, nMaxAlnPer, nMaxHitPer, nQueryType, bPrintEmpty, bGapExt, bAcc, bHssp, nMinLen, bXml);
 
     printf(">>>Main END\n");
     time_t jobfinished = time(NULL);
@@ -208,7 +224,8 @@ void printUsage(char *error)
             "\t-" OPTION_OUTPUT       " string : output file name\n"
             "\t-" OPTION_STDOUT       " int : stream one result through stdout [1: m8 result, 2: aln result, default: don't stream any result through stdout]\n"
             "\t-" OPTION_THREADNUM         " int  : number of threads [default: %d]\n"
-            "\t-" OPTION_EVAL         " double  : threshold of log_10(E-value) [default: %.1f]\n"
+            "\t-" OPTION_EVAL         " double  : threshold of log_10(E-value) [default: %.1f]. It is the default threshold.\n"
+            "\t-" OPTION_BITS         " double  : threshold of bit score [default: %.1f]. It is the alternative option to report hits, instead of log-evalue.\n"
             "\t-" OPTION_MINLEN         " int  : threshold of minimal alignment length [default: %d]\n"
 			"\t-" OPTION_MAXHIT       " int    : number of database sequences to show one-line descriptions [default: %d]. If it's -1, all results will be shown.\n"
 			"\t-" OPTION_MAXALN       " int    : number of database sequence to show alignments [default: %d]. If it's -1, all results will be shown.\n"
@@ -221,7 +238,7 @@ void printUsage(char *error)
             "-------------------------------------------------------------------------\n"
             "example> %s -" OPTION_QUERY " query.fa -" OPTION_SUBJECT " nr -" OPTION_OUTPUT " output_file\n\n"
             ,
-            Program, Version, 1, 1.0, 0, 500, 100, "u", "f", "t", "f", "f", "f", Program
+            Program, Version, 1, 1.0, 0.0, 0, 500, 100, "u", "f", "t", "f", "f", "f", Program
            );
     exit(-1);
 }

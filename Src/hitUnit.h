@@ -70,22 +70,58 @@ public:
 };
 
 
-struct CompFrame
+struct HitComptor
 {
-	bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
+	virtual bool operator() (const CHitUnit& st1, const CHitUnit& st2) const = 0;
+};
+
+struct CompFrame : HitComptor
+{
+	virtual bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
 	{
 		return st1.nFrame < st2.nFrame;
 	}
 };
 
 
-struct CompQSt
+struct CompQSt : HitComptor
 {
-	bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
+	virtual bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
 	{
 		return st1.nQSt < st2.nQSt;
 	}
 };
+
+
+struct CompEval : HitComptor
+{
+	virtual bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
+	{
+		return st1.dEValue < st2.dEValue;
+	}
+};
+
+
+struct CompBits : HitComptor
+{
+	virtual bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
+	{
+		return st1.dBits > st2.dBits;
+	}
+};
+
+
+struct ComptorWrapper
+{
+	HitComptor* _p;
+	ComptorWrapper(HitComptor* p) : _p(p) {}
+
+	bool operator() (const CHitUnit& st1, const CHitUnit& st2) const
+	{
+		return (*_p)(st1, st2);
+	}
+};
+
 
 
 #endif

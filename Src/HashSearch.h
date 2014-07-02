@@ -123,10 +123,15 @@ public:
 		{
 			delete m_pBlastSig;
 		}
+
+		if (NULL != m_pComptor)
+		{
+			delete m_pComptor;
+		}
 	}
 
 	// do the protein database search
-	void Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, double dLogEvaThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 500000000, uint unMer = 6);
+	void Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, double dThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 500000000, uint unMer = 6);
 	// indexing the database
 	void Process(char* szDBFile, char* szDbHash, int nSplitNum = 0, uint unMer = 6);
 
@@ -223,10 +228,12 @@ private:
 	MRESULT m_mRes;
 
 	/* for alignment and calculation */
-	double m_dLogEvaThr;
+	bool m_bEvalue;
+	double m_dThr;
 	int GapIni;
 	int GapExt;
 	int MaxGap;
+	HitComptor* m_pComptor;
 
 	BlastStat* m_pBlastSig;
 	double	GapExtSCutBits;
