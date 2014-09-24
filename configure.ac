@@ -16,14 +16,13 @@ AC_PROG_CC
 
 # Checks for libraries.
 AC_CHECK_LIB([pthread], [pthread_create], [], [AC_MSG_ERROR(pthread not found.)])
-AC_CHECK_LIB([boost_chrono], [main], [], [AC_MSG_ERROR(boost_chrono not found.)])
 AC_CHECK_LIB([boost_serialization], [main], [], [AC_MSG_ERROR(boost_serialization not found.)])
 AC_CHECK_LIB([boost_system], [main], [], [AC_MSG_ERROR(boost_system not found.)])
 AC_CHECK_LIB([boost_thread], [main], [], [AC_MSG_ERROR(boost_thread not found.)])
 
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h stdlib.h string.h])
-AC_CHECK_HEADERS([boost/archive/binary_iarchive.hpp boost/archive/binary_oarchive.hpp boost/bind.hpp boost/chrono/thread_clock.hpp boost/lambda/lambda.hpp boost/lexical_cast.hpp boost/serialization/vector.hpp boost/thread/mutex.hpp boost/thread/thread.hpp])
+AC_CHECK_HEADERS([boost/archive/binary_iarchive.hpp boost/archive/binary_oarchive.hpp boost/bind.hpp boost/lambda/lambda.hpp boost/lexical_cast.hpp boost/serialization/vector.hpp boost/thread/mutex.hpp boost/thread/thread.hpp])
 AC_CHECK_HEADERS([boost/threadpool.hpp])
 
 # Checks for typedefs, structures, and compiler characteristics.
