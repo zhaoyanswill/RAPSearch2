@@ -19,7 +19,7 @@
 #include <boost/bind.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/chrono/thread_clock.hpp>
-#include "threadpool.hpp"
+#include <boost/threadpool.hpp>
 #include "weight.h"
 #include "aa.h"
 #include "n2a.h"
