@@ -1,7 +1,7 @@
 #                                               -*- Autoconf -*-
 # Process this file with autoconf to produce a configure script.
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.63])
 AC_INIT([RAPSearch2], [2.19])
 AC_CONFIG_SRCDIR([Src/main.cpp])
 AC_CONFIG_HEADERS([config.h])
@@ -26,7 +26,7 @@ AC_CHECK_HEADERS([boost/archive/binary_iarchive.hpp boost/archive/binary_oarchiv
 AC_CHECK_HEADERS([boost/threadpool.hpp], [], [AC_MSG_ERROR(boost threadpool not found.)])
 
 # Checks for typedefs, structures, and compiler characteristics.
-AC_CHECK_HEADER_STDBOOL
+AC_HEADER_STDBOOL
 AC_C_INLINE
 AC_TYPE_SIZE_T
 
