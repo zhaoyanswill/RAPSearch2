@@ -23,7 +23,7 @@ AC_CHECK_LIB([boost_thread], [main], [], [AC_MSG_ERROR(boost_thread not found.)]
 # Checks for header files.
 AC_CHECK_HEADERS([fcntl.h stdlib.h string.h])
 AC_CHECK_HEADERS([boost/archive/binary_iarchive.hpp boost/archive/binary_oarchive.hpp boost/bind.hpp boost/lambda/lambda.hpp boost/lexical_cast.hpp boost/serialization/vector.hpp boost/thread/mutex.hpp boost/thread/thread.hpp])
-AC_CHECK_HEADERS([boost/threadpool.hpp])
+AC_CHECK_HEADERS([boost/threadpool.hpp], [], [AC_MSG_ERROR(boost threadpool not found.)])
 
 # Checks for typedefs, structures, and compiler characteristics.
 AC_CHECK_HEADER_STDBOOL
