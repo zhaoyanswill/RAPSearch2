@@ -1,7 +1,7 @@
 Program Name: RAPSearch (rapsearch)
-Version: 2.19 -- *** a version that supports multiple threads **
-Released: Jul 02, 2014 (RAPSearch2.0 was released May 26, 2011)
-Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yuwwu@indiana.edu>, and Haixu Tang <hatang@indiana.edu>
+Version: 2.22 -- *** a version that supports multiple threads **
+Released: Oct 27, 2014 (RAPSearch2.0 was released May 26, 2011)
+Developers: Yongan Zhao <yongzhao@indiana.edu> Yuzhen Ye <yye@indiana.edu>, and Haixu Tang <hatang@indiana.edu>
 Affiliation: School of Informatics and Computing, Indiana University, Bloomington
 
 The development of rapsearch was supported by NIH grant 1R01HG004908 to YY
