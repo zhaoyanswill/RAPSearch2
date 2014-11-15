@@ -1,5 +1,7 @@
 #include "HashSearch.h"
 
+#define OPTION_FULLID "f"
+
 void printUsage(char *error);
 
 int main(int argc, char *argv[])
@@ -7,6 +9,7 @@ int main(int argc, char *argv[])
 	char* szDbSeq = NULL;
 	char* szDbHash = NULL;
 	int	nSplitNum = 0;
+	bool bFullId = false;
 
 	if(argc < 5) printUsage(""); 
 
@@ -25,6 +28,19 @@ int main(int argc, char *argv[])
 		{
 			sscanf(argv[i+1], "%d", &nSplitNum);
 		}
+		else if(argv[i][1] == OPTION_FULLID[0]) // full id
+		{
+			char cFullId = 'f';
+			sscanf(argv[i+1], "%c", &cFullId);
+			if ('f' == cFullId || 'F' == cFullId)
+			{
+				bFullId = false;
+			}
+			else
+			{
+				bFullId = true;
+			}
+		}
 	}
 
 	if (!szDbSeq)	printUsage("Error: No database\n");
@@ -32,7 +48,7 @@ int main(int argc, char *argv[])
 
 	printf("now building hash file\n");
 	CHashSearch hashSearch(0);
-	hashSearch.Process(szDbSeq, szDbHash, nSplitNum);
+	hashSearch.Process(szDbSeq, szDbHash, bFullId, nSplitNum);
 
 	printf("hash file saved to file %s\n", szDbHash);
 
@@ -47,6 +63,7 @@ void printUsage(char *info)
 	printf("Usage: prerapsearch -d database -n swift-file(base name only)\n");
 	printf("       optional parameter:\n");
 	printf("          -s splits-num (splits the database into specified number of files)\n"); 
+	printf("          -f T/t (output the full fasta headers of subjects to faicilitate anonotation)\n"); 
 	printf("Example: prerapsearch -d nr -n nr\n");
 	exit(0);
 }

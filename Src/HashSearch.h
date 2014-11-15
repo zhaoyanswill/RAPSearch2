@@ -131,13 +131,13 @@ public:
 	}
 
 	// do the protein database search
-	void Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, double dThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 500000000, uint unMer = 6);
+	void Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, bool bLogE, double dThr, int nMaxOut, int nMaxM8, int nQueryTypeq, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize = 300000000, uint unQSize = 500000000, uint unMer = 6);
 	// indexing the database
-	void Process(char* szDBFile, char* szDbHash, int nSplitNum = 0, uint unMer = 6);
+	void Process(char* szDBFile, char* szDbHash, bool bFullId, int nSplitNum = 0, uint unMer = 6);
 
 private:
 	// read file and build the hash table
-	int BuildDHash(const char* szDbFile, string& sOutFile, int nSplitNum); 
+	int BuildDHash(const char* szDbFile, string& sOutFile, int nSplitNum, bool bFullId); 
 	// read file and build the hash table
 	int BuildQHash(istream& input, int nQueryType, map<string,char>& mTransTable, map<char,char>& mComple, Seg* seg, Seg* segsht, vector<uchar>& vQSeqs, vector<uint>& vQLens, VNAMES& vQNames); 
 	// probe that what is the type of query
@@ -229,6 +229,7 @@ private:
 
 	/* for alignment and calculation */
 	bool m_bEvalue;
+	bool m_bLogE;
 	double m_dThr;
 	int GapIni;
 	int GapExt;

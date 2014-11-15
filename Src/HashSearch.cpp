@@ -90,6 +90,7 @@ CHashSearch::CHashSearch(int nThreadNum)
 	m_aCode2Char['-'] = '-';
 
 	m_pBlastSig = NULL;
+	m_pComptor = NULL;
 
 	int LONGQUERY = 4096;
 	if (0 == nThreadNum)
@@ -191,7 +192,7 @@ struct CompDbObj
 };
 
 
-int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
+int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum, bool bFullId)
 {
 	/***************************************************************/
 	// revise the size of database according to rapsearch
@@ -277,7 +278,9 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 				++itBeg;
 
 				// the lengths of some sequences are more than 2048
-				int nLen = distance(itBeg, itEd-1);
+				ITER itEnd = remove(itBeg, itEd, '\r');
+				itEnd = remove(itBeg, itEnd, '\n');
+				int nLen = distance(itBeg, itEnd);
 				if (nLen > 2048)
 				{
 					// store longer seq into several fragments with overlaps of size 200
@@ -289,23 +292,39 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum)
 
 					for (int i = 0; i < nNum-1; ++i)
 					{
-						vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
+						if (bFullId == false)
+						{
+							vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
+						}
+						else
+						{
+							vNames.push_back(string(itSt+1, itBeg-1));
+						}
 						vSeqs.insert(vSeqs.end(), itBeg+i*1848, itBeg+2048+i*1848);
-						vSeqs.erase(remove(vSeqs.begin()+vLens.back(), vSeqs.end(), '\r'), vSeqs.end());
-						vSeqs.erase(remove(vSeqs.begin()+vLens.back(), vSeqs.end(), '\n'), vSeqs.end());
 						vLens.push_back(vSeqs.size());
 					}
-					vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
-					vSeqs.insert(vSeqs.end(), itBeg+(nNum-1)*1848, itEd-1);
-					vSeqs.erase(remove(vSeqs.begin()+vLens.back(), vSeqs.end(), '\n'), vSeqs.end());
+					if (bFullId == false)
+					{
+						vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
+					}
+					else
+					{
+						vNames.push_back(string(itSt+1, itBeg-1));
+					}
+					vSeqs.insert(vSeqs.end(), itBeg+(nNum-1)*1848, itEnd);
 					vLens.push_back(vSeqs.size());
 				}
 				else
 				{
-					vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
-					vSeqs.insert(vSeqs.end(), itBeg, itEd-1);
-					vSeqs.erase(remove(vSeqs.begin()+vLens.back(), vSeqs.end(), '\r'), vSeqs.end());
-					vSeqs.erase(remove(vSeqs.begin()+vLens.back(), vSeqs.end(), '\n'), vSeqs.end());
+					if (bFullId == false)
+					{
+						vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
+					}
+					else
+					{
+						vNames.push_back(string(itSt+1, itBeg-1));
+					}
+					vSeqs.insert(vSeqs.end(), itBeg, itEnd);
 					vLens.push_back(vSeqs.size());
 				}
 
@@ -581,6 +600,14 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 				++itBeg;
 				vNames.push_back(/*'>'+*/string(itSt+1, find(itSt+1, itBeg-1, ' ')));
 				vector<char> vS(itBeg, itEd-1);
+				for (ITER itUpper = vS.begin(); itUpper != vS.end(); ++itUpper)
+				{
+					if (*itUpper >= 'a' && *itUpper <= 'z')
+					{
+						*itUpper = *itUpper - 'a' + 'A';
+					}
+				}
+
 				vS.erase(remove(vS.begin(), vS.end(), '\r'), vS.end());
 				vS.erase(remove(vS.begin(), vS.end(), '\n'), vS.end());
 				int x = vS.size();
@@ -669,6 +696,15 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 			{
 				++itBeg;
 				vNames.push_back(string(itSt+1, find(itSt+1, itBeg-1, ' ')));
+
+				for (ITER itUpper = itBeg; itUpper != itEd-1; ++itUpper)
+				{
+					if (*itUpper >= 'a' && *itUpper <= 'z')
+					{
+						*itUpper = *itUpper - 'a' + 'A';
+					}
+				}
+
 				int nIter = vSeqs.size();
 				vSeqs.insert(vSeqs.end(), itBeg, itEd-1);
 				vSeqs.erase(remove(vSeqs.begin()+nIter, vSeqs.end(), '\r'), vSeqs.end());
@@ -836,9 +872,10 @@ void CHashSearch::Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vec
 }
 
 
-void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, double dThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
+void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStdout, bool bEvalue, bool bLogE, double dThr, int nMaxOut, int nMaxM8, int nQueryType, bool bPrintEmpty, bool bGapExt, bool bAcc, bool bHssp, int nMinLen, bool bXml, uint unDSize, uint unQSize, uint unMer)
 {
 	m_bEvalue = bEvalue;
+	m_bLogE = bLogE;
 	if (m_bEvalue == true)
 	{
 		m_pComptor = new CompEval();
@@ -983,13 +1020,13 @@ void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStd
 }
 
 
-void CHashSearch::Process(char* szDBFile, char* szDbHash, int nSplitNum, uint unMer)
+void CHashSearch::Process(char* szDBFile, char* szDbHash, bool bFullId, int nSplitNum, uint unMer)
 {
 	m_unMer = unMer;
 	m_unTotalIdx = lexical_cast<uint>(pow(10.0, int(m_unMer)));
 
 	string sDbOut(szDbHash);
-	BuildDHash(szDBFile, sDbOut, nSplitNum);
+	BuildDHash(szDBFile, sDbOut, nSplitNum, bFullId);
 }
 
 
@@ -2126,17 +2163,16 @@ int CHashSearch::AlignGapped(uchar *seq1, uchar *seq2, int M, int N, int *ext1, 
 
 void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, int nDIdx, uchar* pD, uint unDSeedBeg, CDbPckg& Db, uint unLocalSeedLen, STAlnmnt& stAlnmnt, MRESULT& mRes, int nTreadID)
 {
-	double dEValue = m_vpBlastSig[nTreadID]->rawScore2ExpectLog(stAlnmnt.nScore);
-	if (dEValue > 0)
+	double dEValue = 0.0;
+	if (m_bLogE == true)
 	{
-		dEValue = floor(dEValue*100+0.5) / 100;
+		dEValue = m_vpBlastSig[nTreadID]->rawScore2ExpectLog(stAlnmnt.nScore);
 	}
 	else
 	{
-		dEValue = floor(dEValue*100-0.5) / 100;
+		dEValue = m_vpBlastSig[nTreadID]->rawScore2Expect(stAlnmnt.nScore);
 	}
 	double dBits = m_vpBlastSig[nTreadID]->rawScore2Bit(stAlnmnt.nScore);
-	dBits = floor(dBits*100+0.5) / 100;
 	
 	int nTotGap = 0;
 	int nGapOpen = 0;
@@ -2402,8 +2438,10 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 		{
 			++nFac;
 		}
-		string sDNum = lexical_cast<string>(1848*nFac+st.nDSt);
-		st.sD = string(nBegStrAligned-sDNum.size(), ' ') + sDNum + " " + st.sD + " " + lexical_cast<string>(1848*nFac+st.nDEd);
+		st.nDSt = 1848*nFac+st.nDSt;
+		st.nDEd = 1848*nFac+st.nDEd;
+		string sDNum = lexical_cast<string>(st.nDSt);
+		st.sD = string(nBegStrAligned-sDNum.size(), ' ') + sDNum + " " + st.sD + " " + lexical_cast<string>(st.nDEd);
 
 		st.sQName = Query.m_vNames[nQrIdx];
 		st.sDName = Db.m_vNames[st.nDbIdx];
@@ -2412,6 +2450,35 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 	vTemp.resize(itSt-vTemp.begin());
 	if (vTemp.size() != 0)
 	{
+		// remove possible redundancy in overlapped region
+		// there should be only one redundant hit for each overlapped region
+		for (uint i = 1; i < vTemp.size(); ++i)
+		{
+			if (vTemp[i].nScore==vTemp[i-1].nScore
+					&& vTemp[i].sDName == vTemp[i-1].sDName
+					&& vTemp[i].sQName == vTemp[i-1].sQName
+					&& vTemp[i].nDSt == vTemp[i-1].nDSt
+					&& vTemp[i].nDEd == vTemp[i-1].nDEd
+					&& vTemp[i].nQBeg == vTemp[i-1].nQBeg
+					&& vTemp[i].nQEnd == vTemp[i-1].nQEnd)
+			{
+				vTemp[i].dEValue = 1000000;
+			}
+		}
+
+		uint nf = 0;
+		uint nl = vTemp.size();
+		while (nf < nl)
+		{
+			if (vTemp[nf].dEValue == 1000000)
+			{
+				--nl;
+				swap(vTemp[nf], vTemp[nl]);
+			}
+			++nf;
+		}
+		vTemp.resize(nl);
+
 		stringstream sOutput;
 		archive::binary_oarchive oa(sOutput);
 		oa << vTemp;
@@ -2528,6 +2595,10 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 					{
 						dSumEvalue = log(dTmp) / LOG10;
 					}
+					if (m_bLogE == false)
+					{
+						dSumEvalue = dTmp;
+					}
 					// modify the logevalue
 					if (dSumEvalue < m_dThr)
 					{
@@ -2631,12 +2702,19 @@ void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 		(*poM8) << "# RAPSearch\n# Job submitted: "
 			<< m_sStartTime
 			<< "# Query : " << m_sQFile << "\n"
-			<< "# Subject : " << m_sDFile << "\n"
-			<< "# Fields: Query\tSubject\tidentity\taln-len\tmismatch\tgap-openings\tq.start\tq.end\ts.start\ts.end\tlog(e-value)\tbit-score\n";
+			<< "# Subject : " << m_sDFile << "\n";
+		if (m_bLogE == true)
+		{
+			(*poM8) << "# Fields: Query\tSubject\tidentity\taln-len\tmismatch\tgap-openings\tq.start\tq.end\ts.start\ts.end\tlog(e-value)\tbit-score\n";
+		}
+		else
+		{
+			(*poM8) << "# Fields: Query\tSubject\tidentity\taln-len\tmismatch\tgap-openings\tq.start\tq.end\ts.start\ts.end\te-value\tbit-score\n";
+		}
 
 		m_sStartTime = "";
 	}
-
+	
 	if (m_bXml)
 	{
 		m_ofXml.open((m_sOutBase+".xml").c_str());
@@ -2785,9 +2863,16 @@ void CHashSearch::PrintAln(vector<CHitUnit>& v, ostream& of)
 		of << c.sQName
 			<< " vs "
 			<< c.sDName
-			<< " bits="	<< c.dBits
-			<< " log(E-value)="	<< c.dEValue
-			<< " identity=" << c.dIdent << "%"
+			<< " bits="	<< c.dBits;
+		if (m_bLogE == true)
+		{
+			of << " log(E-value)="	<< c.dEValue;
+		}
+		else
+		{
+			of << " E-value="	<< c.dEValue;
+		}
+		of << " identity=" << c.dIdent << "%"
 			<< " aln-len="	<< c.nAlnLen
 			<< " mismatch="	<< c.nMismatch
 			<< " gap-openings="	<< c.nGapOpen
@@ -2810,6 +2895,7 @@ void CHashSearch::PrintM8(vector<CHitUnit>& v, ostream& of)
 
 		of << c.sQName
 			<< "\t" << c.sDName
+			<< setprecision(1) << setiosflags(ios::fixed)
 			<< "\t" << c.dIdent
 			<< "\t"	<< c.nAlnLen
 			<< "\t"	<< c.nMismatch
@@ -2817,8 +2903,32 @@ void CHashSearch::PrintM8(vector<CHitUnit>& v, ostream& of)
 			<< "\t" << c.nQBeg
 			<< "\t" << c.nQEnd
 			<< "\t" << c.nDSt
-			<< "\t" << c.nDEd
-			<< "\t"	<< c.dEValue 
+			<< "\t" << c.nDEd;
+		if (m_bLogE == true)
+		{
+			of << setprecision(1) << setiosflags(ios::fixed)
+				<< "\t"	<< c.dEValue;
+		}
+		else
+		{
+			if (c.dEValue < 0.01)
+			{
+				of << setprecision(1) << setiosflags(ios::scientific) << setiosflags(ios::fixed)
+					<< "\t"	<< c.dEValue;
+				of << resetiosflags(ios::scientific);
+			}
+			else if (c.dEValue < 10.0)
+			{
+				of << setprecision(2) << setiosflags(ios::fixed)
+					<< "\t"	<< c.dEValue;
+			}
+			else
+			{
+				of << setprecision(0) << setiosflags(ios::fixed)
+					<< "\t"	<< c.dEValue;
+			}
+		}
+		of << setprecision(1) << setiosflags(ios::fixed)
 			<< "\t"	<< c.dBits 
 			<< "\n";
 	}
@@ -2859,7 +2969,14 @@ void CHashSearch::PrintXmlBegin(string& sDbPre)
 	PrintXmlLine("Parameters_matrix", "BLOSUM62");
 	if (m_bEvalue == true)
 	{
-		PrintXmlLine("Parameters_log-expect evalue", lexical_cast<string>(m_dThr));
+		if (m_bLogE == true)
+		{
+			PrintXmlLine("Parameters_log-expect_evalue", lexical_cast<string>(m_dThr));
+		}
+		else
+		{
+			PrintXmlLine("Parameters_expect_evalue", lexical_cast<string>(m_dThr));
+		}
 	}
 	else
 	{
@@ -2899,7 +3016,14 @@ void CHashSearch::PrintXml(vector<CHitUnit>& v, int nIdx)
 		PrintXmlLine("Hsp_num", 1);
 		PrintXmlLine("Hsp_bit-score", c.dBits);
 		PrintXmlLine("Hsp_score", c.nScore);
-		PrintXmlLine("Hsp_log-evalue", c.dEValue);
+		if (m_bLogE == true)
+		{
+			PrintXmlLine("Hsp_log-evalue", c.dEValue);
+		}
+		else
+		{
+			PrintXmlLine("Hsp_evalue", c.dEValue);
+		}
 		PrintXmlLine("Hsp_query-from", c.nQBeg);
 		PrintXmlLine("Hsp_query-to", c.nQEnd);
 		PrintXmlLine("Hsp_hit-from", c.nDSt);
