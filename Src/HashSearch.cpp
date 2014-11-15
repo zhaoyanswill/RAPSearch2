@@ -18,8 +18,7 @@
 #include <boost/serialization/vector.hpp>
 #include <boost/bind.hpp>
 #include <boost/thread/mutex.hpp>
-#include <boost/chrono/thread_clock.hpp>
-#include "threadpool.hpp"
+#include <boost/threadpool.hpp>
 #include "weight.h"
 #include "aa.h"
 #include "n2a.h"
@@ -1052,8 +1051,6 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 	muMonitor.unlock();
 
 	int nFoundHit = 0;
-	//using namespace boost::chrono;
-	//thread_clock::time_point start = thread_clock::now();
 
 	MRESULT mRes;
 	for (int nStep = 0; nStep < m_nIdxScl; ++nStep)
@@ -1539,8 +1536,6 @@ int CHashSearch::ExtendSeq2Set(int nSeed, uint unLocalSeedLen, vector<uchar>& vE
 		VNAMES& vQNames, VNAMES& vDNames,
 		MRESULT& mRes, int nTreadID)
 {
-	//using namespace boost::chrono;
-	//thread_clock::time_point st = thread_clock::now();
 	// find a proper range for the comparisons
 	int nSt = 0;
 	int nEd = 0;
