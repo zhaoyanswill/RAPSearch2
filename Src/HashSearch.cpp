@@ -1314,7 +1314,7 @@ void CHashSearch::Searching(int k, CQrPckg& Query, CDbPckg& Db)
 			}
 
 			/*********************************************************/
-			if (6 == m_unMer && m_unMutSeedLen > m_unMer)
+			if (6 == m_unMer && m_unMutSeedLen > m_unMer && !Db.m_vHash[nSeed].empty())
 			{
 				// mutation pos 6
 				// think it as a mutation at pos 5, then do set intersection with current seed set
