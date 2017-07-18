@@ -817,7 +817,7 @@ void CHashSearch::Search(string& sDbPre, int nSeqNum, vector<uchar>& vQSeqs, vec
 		m_ofTemp.open((m_sOutBase+".tmp"+lexical_cast<string>(j)).c_str());
 
 		// read db file and store info
-		MINDEX vDHash(m_unTotalIdx, VUINT()); // all k-mer of database
+		MINDEX vDHash(0, VUINT()); // all k-mer of database
 		vector<uint> vDLens;
 		vector<uchar> vDSeqs;
 		VNAMES vDNames;
