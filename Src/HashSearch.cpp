@@ -463,20 +463,20 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 	char cSeqEd = '>';
 	// init m_bSeqType & m_nIdxScl
 	m_nQueryType = nQueryType;
-	if (1 == nQueryType)
+	if (1 == m_nQueryType)
 	{
 		// nt
         m_bSeqType = true;
 		m_nIdxScl = 6;
         printf("Queries are nucleotide sequences in fasta format\n");
 	}
-	else if (2 == nQueryType)
+	else if (2 == m_nQueryType)
 	{
 		// aa
         m_bSeqType = false;
         printf("Queries are protein sequences\n");
 	}
-	else if (3 == nQueryType)
+	else if (3 == m_nQueryType)
 	{
 		// fastq
         m_bSeqType = true;
@@ -521,7 +521,7 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 					m_nIdxScl = 6;
 					printf("Queries are nucleotide sequences in fasta format\n");
 				}
-				else if (2 == nQueryType)
+				else if (2 == m_nQueryType)
 				{
 					// aa
 					m_bSeqType = false;
@@ -568,6 +568,9 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 						itStop = ++itTemp;
 					}
 				}
+				m_sLeft.clear();
+				m_sLeft.assign(itStop, vPool.end());
+				++itStop;
 			}
 			else
 			{
@@ -680,7 +683,7 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 				}
 
 				itSt = itEd;
-				if (3 == nQueryType)
+				if (3 == m_nQueryType)
 				{
 					itSt = find(itSt, itStop, '\n');
 					++itSt;
@@ -886,6 +889,12 @@ void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStd
 		m_pComptor = new CompBits();
 	}
 	m_dThr = dThr;
+	if (m_bLogE == false)
+	{
+		//m_dThr = log(m_dThr);
+                m_dThr = log(m_dThr) / log(10);
+                //needs to be log_10, YY, Sep 2016
+	}
 	if (nMaxOut == -1)
 	{
 		m_nMaxOut = LLONG_MAX;
@@ -939,6 +948,24 @@ void CHashSearch::Process(char* szDBFile, char* szQFile, char* szOFile, int nStd
 	if (szOFile != NULL)
 	{
 		m_sOutBase.assign(szOFile);
+
+		string sDel = m_sOutBase + ".aln";
+		ifstream iffTest;
+
+		iffTest.open(sDel.c_str());
+		if (iffTest.good())
+		{
+			iffTest.close();
+			remove(sDel.c_str());
+		}
+
+		sDel = m_sOutBase + ".m8";
+		iffTest.open(sDel.c_str());
+		if (iffTest.good())
+		{
+			iffTest.close();
+			remove(sDel.c_str());
+		}
 	}
 	else
 	{
@@ -2169,14 +2196,7 @@ int CHashSearch::AlignGapped(uchar *seq1, uchar *seq2, int M, int N, int *ext1, 
 void CHashSearch::CalRes(int nQIdx, uchar* pQ, int nQOriLen, uint unQSeedBeg, int nDIdx, uchar* pD, uint unDSeedBeg, CDbPckg& Db, uint unLocalSeedLen, STAlnmnt& stAlnmnt, MRESULT& mRes, int nTreadID)
 {
 	double dEValue = 0.0;
-	if (m_bLogE == true)
-	{
-		dEValue = m_vpBlastSig[nTreadID]->rawScore2ExpectLog(stAlnmnt.nScore);
-	}
-	else
-	{
-		dEValue = m_vpBlastSig[nTreadID]->rawScore2Expect(stAlnmnt.nScore);
-	}
+	dEValue = m_vpBlastSig[nTreadID]->rawScore2ExpectLog(stAlnmnt.nScore);
 	double dBits = m_vpBlastSig[nTreadID]->rawScore2Bit(stAlnmnt.nScore);
 	
 	int nTotGap = 0;
@@ -2420,7 +2440,7 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 	vector<CHitUnit>::iterator itPrint = vTemp.begin()+nMax;
 	partial_sort(vTemp.begin(), itPrint, vTemp.end(), ComptorWrapper(m_pComptor));
 
-	int nBegStrAligned = 6;
+	int nBegStrAligned = 10;
 	vector<CHitUnit>::iterator itSt = vTemp.begin();
 	for (; itSt != itPrint; ++itSt)
 	{
@@ -2431,7 +2451,7 @@ void CHashSearch::PrintRes(MRESULT& mRes, int nTreadID, CQrPckg& Query, CDbPckg&
 		}
 		// note: here, the hits are stored according to it's real query index, not 1->6 frame query index
 
-		st.sInfo.insert(0, 7, ' ');
+		st.sInfo.insert(0, nBegStrAligned+1, ' ');
 
 		string sQNum = lexical_cast<string>(st.nQBeg);
 		st.sQ = string(nBegStrAligned-sQNum.size(), ' ') + sQNum + " " + st.sQ + " " + lexical_cast<string>(st.nQEnd);
@@ -2600,10 +2620,6 @@ void CHashSearch::SumEvalue(vector<CHitUnit>& v, int nSt, int nEd, int nLen, int
 					{
 						dSumEvalue = log(dTmp) / LOG10;
 					}
-					if (m_bLogE == false)
-					{
-						dSumEvalue = dTmp;
-					}
 					// modify the logevalue
 					if (dSumEvalue < m_dThr)
 					{
@@ -2676,7 +2692,7 @@ void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 	}
 	else if (!m_sOutBase.empty() && m_nMaxOut != 0)
 	{
-		poAln = new ofstream((m_sOutBase+".aln").c_str());
+		poAln = new ofstream((m_sOutBase+".aln").c_str(),ios_base::out|ios_base::app);
 		if (!poAln->good())
 		{
 			((ofstream*)poAln)->close();
@@ -2692,7 +2708,7 @@ void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 	}
 	else if (!m_sOutBase.empty() && m_nMaxM8 != 0)
 	{
-		poM8 = new ofstream((m_sOutBase+".m8").c_str());
+		poM8 = new ofstream((m_sOutBase+".m8").c_str(),ios_base::out|ios_base::app);
 		if (!poM8->good())
 		{
 			((ofstream*)poM8)->close();
@@ -2722,7 +2738,7 @@ void CHashSearch::MergeRes(int nDbBlockNum, VNAMES& vQNames, string& sDbPre)
 	
 	if (m_bXml)
 	{
-		m_ofXml.open((m_sOutBase+".xml").c_str());
+		m_ofXml.open((m_sOutBase+".xml").c_str(),ios_base::out|ios_base::app);
 		PrintXmlBegin(sDbPre);
 	}
 
@@ -2875,7 +2891,7 @@ void CHashSearch::PrintAln(vector<CHitUnit>& v, ostream& of)
 		}
 		else
 		{
-			of << " E-value="	<< c.dEValue;
+			of << " E-value="	<< pow(10,c.dEValue);
 		}
 		of << " identity=" << c.dIdent << "%"
 			<< " aln-len="	<< c.nAlnLen
@@ -2916,9 +2932,10 @@ void CHashSearch::PrintM8(vector<CHitUnit>& v, ostream& of)
 		}
 		else
 		{
+			c.dEValue = pow(10, c.dEValue);
 			if (c.dEValue < 0.01)
 			{
-				of << setprecision(1) << setiosflags(ios::scientific) << setiosflags(ios::fixed)
+				of << setprecision(2) << setiosflags(ios::scientific) << setiosflags(ios::fixed)
 					<< "\t"	<< c.dEValue;
 				of << resetiosflags(ios::scientific);
 			}
@@ -2980,7 +2997,7 @@ void CHashSearch::PrintXmlBegin(string& sDbPre)
 		}
 		else
 		{
-			PrintXmlLine("Parameters_expect_evalue", lexical_cast<string>(m_dThr));
+			PrintXmlLine("Parameters_expect_evalue", lexical_cast<string>(pow(10,m_dThr)));
 		}
 	}
 	else
@@ -3027,7 +3044,7 @@ void CHashSearch::PrintXml(vector<CHitUnit>& v, int nIdx)
 		}
 		else
 		{
-			PrintXmlLine("Hsp_evalue", c.dEValue);
+			PrintXmlLine("Hsp_evalue", pow(10,c.dEValue));
 		}
 		PrintXmlLine("Hsp_query-from", c.nQBeg);
 		PrintXmlLine("Hsp_query-to", c.nQEnd);
