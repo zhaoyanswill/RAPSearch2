@@ -12,20 +12,8 @@ make
 rm -f -r *.o
 
 cd $CDIR
-
-if test -d bin; then
-  read -n1 -p 'A local bin directory already exists, do you wish to overwrite? (Y/N)' booleanYorN
-  case $booleanYorN in
-   y|Y) echo "" ; rm -f -r bin ; mkdir bin ;;
-   n|N) echo "" ; echo "only replacing binary files in local bin dir" ;;
-   *) echo "" ; echo "invalid Input "; exit 1 ;;
-  esac
-else 
-  mkdir bin
-fi
-
-
-
+rm -f -r bin
+mkdir bin
 
 mv $TMPDIR/rapsearch bin/rapsearch
 mv $TMPDIR/prerapsearch bin/
