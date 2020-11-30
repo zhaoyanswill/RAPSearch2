@@ -258,11 +258,11 @@ int CHashSearch::BuildDHash(const char* szFile, string& sOutFile, int nSplitNum,
 		{
 			// for last block of data, give it a '>' to split the last sequence
 			vPool[unLeft+nRead] = '>';
-			advance(itStop, unLeft+nRead+1);
+			boost::iterators::advance(itStop, unLeft+nRead+1);
 		}
 		else
 		{
-			advance(itStop, unLeft+nRead);
+			boost::iterators::advance(itStop, unLeft+nRead);
 		}
 
 
@@ -543,7 +543,7 @@ int CHashSearch::BuildQHash(istream& input, int nQueryType, map<string,char>& mT
 		ITER itStop = vPool.begin();
 		if (m_sLeft.size()+nRead < m_unQSize)
 		{
-			advance(itStop, m_sLeft.size()+nRead+1);
+			boost::iterators::advance(itStop, m_sLeft.size()+nRead+1);
 		}
 		else
 		{
